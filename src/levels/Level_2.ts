@@ -3,6 +3,7 @@ import { BaseLevel } from "./BaseLevel";
 import { Demon } from "../entities/Demon";
 import { Portal } from "../entities/Portal";
 import { AudioManager } from "../managers/AudioManager";
+import { DialogueManager } from "../managers/DialogueManager";
 
 export class Level_2 extends BaseLevel {
   private demon!: Demon;
@@ -54,6 +55,20 @@ export class Level_2 extends BaseLevel {
       2,
     );
 
+    // Register Dialogue
+    const dialogueManager = DialogueManager.getInstance();
+    dialogueManager.register({
+      id: "demon_intro",
+      lines: [
+        { text: "The void...", duration: 2500 },
+        { text: "It hungers for you, traveler.", duration: 3500 },
+        {
+          text: "Your light is but a flickering candle in the eternal dark.",
+          duration: 4000,
+        },
+      ],
+    });
+
     // --- PORTAL ONE-LINER ---
     // Scene, Position, Target Level ID
     this.portal = new Portal(this.scene, new Vector3(-3, 1.5, -3), "level1");
@@ -65,6 +80,7 @@ export class Level_2 extends BaseLevel {
       if (dist < 4 && !this.hasInteracted) {
         this.hasInteracted = true;
         AudioManager.getInstance().play("demon_voice");
+        DialogueManager.getInstance().play("demon_intro");
       }
     }
 

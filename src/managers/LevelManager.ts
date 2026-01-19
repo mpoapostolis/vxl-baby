@@ -1,6 +1,7 @@
 import { Engine } from "../core/Engine";
 import type { BaseLevel } from "../levels/BaseLevel";
 import { AudioManager } from "./AudioManager";
+import { DialogueManager } from "./DialogueManager";
 
 export class LevelManager {
   private static instance: LevelManager;
@@ -25,6 +26,9 @@ export class LevelManager {
   }
 
   public async load(id: string): Promise<void> {
+    // Stop any active dialogue
+    DialogueManager.getInstance().stop();
+
     // Dispose current level
     if (this.currentLevel) {
       this.currentLevel.dispose();

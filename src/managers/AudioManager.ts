@@ -11,6 +11,7 @@ export class AudioManager {
     ["demon_voice", "/assets/sounds/i_see_you_voice.mp3"],
     ["level_1", "/assets/sounds/level_1.mp3"],
     ["level_2", "/assets/sounds/level_2.mp3"],
+    ["typing", "/assets/sounds/beep.wav"],
   ]);
 
   // Εδώ κρατάμε τους active native ήχους για να μπορούμε να κάνουμε stop αν χρειαστεί
