@@ -1,46 +1,67 @@
-# Astro Starter Kit: Basics
+# vxl-baby 👶🎮
 
-```sh
-bun create astro@latest -- --template basics
-```
+[**Play the Demo**](https://horror-game-vid.mpoapostolis.workers.dev/) 🕹️
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+A web-based 3D horror/exploration game built with **Astro**, **Babylon.js**, and **Havok Physics**.
 
-## 🚀 Project Structure
+## 🚀 Overview
 
-Inside of your Astro project, you'll see the following folders and files:
+This project is a modern web game experiment leveraging **WebGPU** (via Babylon.js) for high-performance rendering and **Havok** for realistic physics. It features a modular level system, atmospheric effects, and character interaction.
 
-```text
-/
-├── public/
-│   └── favicon.svg
-├── src
-│   ├── assets
-│   │   └── astro.svg
-│   ├── components
-│   │   └── Welcome.astro
-│   ├── layouts
-│   │   └── Layout.astro
-│   └── pages
-│       └── index.astro
-└── package.json
-```
+## 🛠️ Tech Stack
 
-To learn more about the folder structure of an Astro project, refer to [our guide on project structure](https://docs.astro.build/en/basics/project-structure/).
+- **Framework:** [Astro](https://astro.build)
+- **3D Engine:** [Babylon.js](https://www.babylonjs.com/) (WebGPU)
+- **Physics:** [Havok Physics](https://doc.babylonjs.com/features/featuresDeepDive/physics/havokPlugin)
+- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
+- **Language:** TypeScript
 
-## 🧞 Commands
+## 📂 Project Structure
 
-All commands are run from the root of the project, from a terminal:
+- **`src/core`**: Main engine initialization (`WebGPUEngine`).
+- **`src/levels`**: Level logic. `BaseLevel` handles common setups (lights, camera, physics).
+  - `Level_1`: Initial apartment scene.
+  - `Level_2`: Darker scene with Demon NPC.
+- **`src/entities`**: Game objects.
+  - `Player`: 3D Character controller with physics-based movement.
+  - `Demon`: Interactive NPC.
+  - `Portal`: Triggers level transitions.
+- **`src/managers`**:
+  - `AssetManager`: Async GLB model loading.
+  - `AudioManager`: Sound effects and background tracks.
+  - `InputManager`: Unified input handling.
+  - `DialogueManager`: In-game UI for conversations.
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `bun install`             | Installs dependencies                            |
-| `bun dev`             | Starts local dev server at `localhost:4321`      |
-| `bun build`           | Build your production site to `./dist/`          |
-| `bun preview`         | Preview your build locally, before deploying     |
-| `bun astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `bun astro -- --help` | Get help using the Astro CLI                     |
+## 🕹️ Controls
 
-## 👀 Want to learn more?
+- **WASD**: Move Character
+- **Mouse**: Look around
+- **Interaction**: Context-sensitive (e.g., proximity to Demon)
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+## 🏃 Getting Started
+
+1. **Install Dependencies**
+
+   ```bash
+   npm install
+   ```
+
+2. **Run Development Server**
+
+   ```bash
+   npm run dev
+   ```
+
+3. **Build for Production**
+   ```bash
+   npm run build
+   ```
+
+## ⚠️ Notes
+
+- **Assets**: 3D models and generic assets are located in `public/assets`.
+- **Physics**: Requires `HavokPhysics.wasm` (automatically loaded from assets).
+
+---
+
+_Built by StruggleCoder_
