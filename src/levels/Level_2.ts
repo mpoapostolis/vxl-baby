@@ -60,9 +60,14 @@ export class Level_2 extends BaseLevel {
     dialogueManager.register({
       id: "demon_intro",
       lines: [
-        { text: "The void...", duration: 2500 },
-        { text: "It hungers for you, traveler.", duration: 3500 },
+        { speaker: "Demon", text: "The void...", duration: 2500 },
         {
+          speaker: "Demon",
+          text: "It hungers for you, traveler.",
+          duration: 3500,
+        },
+        {
+          speaker: "Demon",
           text: "Your light is but a flickering candle in the eternal dark.",
           duration: 4000,
         },
@@ -76,6 +81,7 @@ export class Level_2 extends BaseLevel {
 
   protected override onUpdate(): void {
     if (this.demon && this.player) {
+      this.player.spotLight.intensity = 500;
       const dist = Vector3.Distance(this.player.position, this.demon.position);
       if (dist < 4 && !this.hasInteracted) {
         this.hasInteracted = true;

@@ -18,15 +18,14 @@ export class Level_1 extends BaseLevel {
   constructor() {
     super({
       ambientIntensity: 0.4,
-      flashlightIntensity: 1,
       clearColor: [0.01, 0.01, 0.03, 1],
       fogEnabled: true,
       fogColor: [0.01, 0.01, 0.03],
       fogDensity: 0.03,
       pipeline: {
-        grain: 1,
-        vignette: 0,
-        vignetteWeight: 1,
+        grain: 10,
+        vignette: 20,
+        vignetteWeight: 20,
         chromaticAberration: 2,
         contrast: 1.4,
         exposure: 1.0,
@@ -83,9 +82,13 @@ export class Level_1 extends BaseLevel {
     dialogueManager.register({
       id: "wife_intro",
       lines: [
-        { text: "Where have you been?", duration: 3000 },
-        { text: "I was so worried...", duration: 3000 },
-        { text: "Please, don't leave me again.", duration: 3500 },
+        { speaker: "Wife", text: "Where have you been?", duration: 3000 },
+        { speaker: "Wife", text: "I was so worried...", duration: 3000 },
+        {
+          speaker: "Wife",
+          text: "Please, don't leave me again.",
+          duration: 3500,
+        },
       ],
     });
   }
@@ -98,20 +101,6 @@ export class Level_1 extends BaseLevel {
         DialogueManager.getInstance().play("wife_intro");
       }
     }
-
-    if (Math.random() < 0.03) {
-      this.flashlight.intensity = 2 + Math.random() * 0.5;
-    } else {
-      this.flashlight.intensity = 3 + Math.random() * 0.3;
-    }
-
-    if (this.pipeline) {
-      const time = Date.now() * 0.001;
-      this.pipeline.imageProcessing.vignetteWeight = 3 + Math.sin(time) * 0.5;
-    }
-
-    this.camera.rotation.x += (Math.random() - 0.5) * 0.001;
-    this.camera.rotation.y += (Math.random() - 0.5) * 0.001;
   }
 
   public start(): void {}

@@ -82,7 +82,6 @@ export class Player {
     );
     this.spotLight.position.y = 2;
     this.spotLight.parent = this.mesh;
-    this.spotLight.intensity = 500;
 
     // Start idle
     const idleAnim = this.anims.get(ANIMATIONS.Idle_Neutral);

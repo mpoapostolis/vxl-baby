@@ -45,24 +45,43 @@ export class DialogueManager {
     this.overlay = document.createElement("div");
     this.overlay.id = "dialogue-overlay";
     this.overlay.className =
-      "fixed bottom-12 left-1/2 transform -translate-x-1/2 w-[90%] max-w-3xl bg-black/90 border-t-2 border-b-2 border-red-900/60 text-white p-8 rounded-sm shadow-2xl pointer-events-none opacity-0 transition-all duration-500 z-50 backdrop-blur-md flex flex-col items-center gap-4";
+      "fixed bottom-12 left-1/2 transform -translate-x-1/2 w-[90%] max-w-3xl bg-black/95 border-y-4 text-white p-8 rounded-sm shadow-2xl pointer-events-none opacity-0 translate-y-4 transition-all duration-500 z-50 backdrop-blur-xl flex flex-col items-center gap-4";
 
     // Speaker Label
     const speakerLabel = document.createElement("span");
+    speakerLabel.id = "speaker-label";
     speakerLabel.className =
-      "text-red-500 font-bold uppercase tracking-[0.2em] text-sm mb-2 opacity-80";
-    speakerLabel.textContent = "UNKNOWN ENTITY"; // Default, could be dynamic
+      "font-bold uppercase tracking-[0.3em] text-sm mb-2 opacity-90";
+    speakerLabel.textContent = "UNKNOWN";
     this.overlay.appendChild(speakerLabel);
 
     this.textElement = document.createElement("p");
     this.textElement.className =
-      "text-2xl font-serif tracking-wide text-center text-gray-200 min-h-[1.5em] leading-relaxed drop-shadow-md";
+      "text-2xl font-serif tracking-wide text-center min-h-[1.5em] leading-relaxed drop-shadow-md";
 
-    // Add cursor style
+    // Add cursor style & themes
     const style = document.createElement("style");
     style.textContent = `
       @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-      .cursor::after { content: ''; display: inline-block; width: 0.6em; height: 1.2em; background: #ef4444; margin-left: 4px; vertical-align: middle; animation: blink 1s step-end infinite; }
+      .cursor::after { content: ''; display: inline-block; width: 0.6em; height: 1.2em; background: currentColor; margin-left: 4px; vertical-align: middle; animation: blink 1s step-end infinite; }
+      
+      /* DEMON THEME */
+      .theme-demon {
+        border-color: rgba(127, 29, 29, 0.8);
+        box-shadow: 0 0 30px rgba(127, 29, 29, 0.2);
+      }
+      .theme-demon #speaker-label { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+      .theme-demon p { color: #fee2e2; }
+      .theme-demon .cursor::after { background: #ef4444; }
+
+      /* WIFE THEME */
+      .theme-wife {
+        border-color: rgba(6, 182, 212, 0.8);
+        box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
+      }
+      .theme-wife #speaker-label { color: #22d3ee; text-shadow: 0 0 10px rgba(34, 211, 238, 0.5); }
+      .theme-wife p { color: #ecfeff; }
+      .theme-wife .cursor::after { background: #22d3ee; }
     `;
     document.head.appendChild(style);
 
@@ -82,10 +101,27 @@ export class DialogueManager {
     this.currentLineIndex = 0;
     this.isPlaying = true;
 
-    // Show overlay
+    // Apply Theme & Speaker
+    const speaker = this.currentDialogue.lines[0]?.speaker || "Unknown";
+    const speakerLabel = this.overlay?.querySelector("#speaker-label");
+    if (speakerLabel) speakerLabel.textContent = speaker;
+
+    // Reset themes
+    this.overlay?.classList.remove("theme-demon", "theme-wife");
+
+    // Set Theme
+    if (speaker === "Demon") {
+      this.overlay?.classList.add("theme-demon");
+    } else if (speaker === "Wife") {
+      this.overlay?.classList.add("theme-wife");
+    } else {
+      this.overlay?.classList.add("theme-demon"); // Fallback
+    }
+
+    // Show overlay with animation
     if (this.overlay) {
-      this.overlay.classList.remove("opacity-0");
-      this.overlay.classList.add("opacity-100");
+      this.overlay.classList.remove("opacity-0", "translate-y-4");
+      this.overlay.classList.add("opacity-100", "translate-y-0");
     }
 
     this.showNextLine();
@@ -147,8 +183,8 @@ export class DialogueManager {
 
     // Hide overlay
     if (this.overlay) {
-      this.overlay.classList.remove("opacity-100");
-      this.overlay.classList.add("opacity-0");
+      this.overlay.classList.remove("opacity-100", "translate-y-0");
+      this.overlay.classList.add("opacity-0", "translate-y-4");
     }
   }
 
