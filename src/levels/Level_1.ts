@@ -23,7 +23,7 @@ export class Level_1 extends BaseLevel {
       fogColor: [0.01, 0.01, 0.03],
       fogDensity: 0.03,
       pipeline: {
-        grain: 10,
+        grain: 50,
         vignette: 20,
         vignetteWeight: 20,
         chromaticAberration: 2,

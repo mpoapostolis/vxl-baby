@@ -45,43 +45,62 @@ export class DialogueManager {
     this.overlay = document.createElement("div");
     this.overlay.id = "dialogue-overlay";
     this.overlay.className =
-      "fixed bottom-12 left-1/2 transform -translate-x-1/2 w-[90%] max-w-3xl bg-black/95 border-y-4 text-white p-8 rounded-sm shadow-2xl pointer-events-none opacity-0 translate-y-4 transition-all duration-500 z-50 backdrop-blur-xl flex flex-col items-center gap-4";
+      "fixed bottom-12 left-1/2 transform -translate-x-1/2 w-[90%] max-w-3xl bg-gradient-to-b from-black/95 to-gray-900/95 border-y-4 text-white p-8 rounded-sm shadow-2xl pointer-events-none opacity-0 translate-y-4 transition-all duration-500 z-50 backdrop-blur-xl flex flex-col items-center gap-4";
 
     // Speaker Label
     const speakerLabel = document.createElement("span");
     speakerLabel.id = "speaker-label";
     speakerLabel.className =
-      "font-bold uppercase tracking-[0.3em] text-sm mb-2 opacity-90";
+      "font-bold uppercase tracking-[0.3em] text-sm mb-2 opacity-90 font-sans";
     speakerLabel.textContent = "UNKNOWN";
     this.overlay.appendChild(speakerLabel);
 
     this.textElement = document.createElement("p");
     this.textElement.className =
-      "text-2xl font-serif tracking-wide text-center min-h-[1.5em] leading-relaxed drop-shadow-md";
+      "text-xl md:text-2xl font-mono tracking-wide text-center min-h-[1.5em] leading-relaxed drop-shadow-md";
 
-    // Add cursor style & themes
+    // Add cursor style & themes & effects
     const style = document.createElement("style");
     style.textContent = `
       @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+      @keyframes scanline { 0% { background-position: 0 0; } 100% { background-position: 0 100%; } }
+      @keyframes pulse-red { 0% { border-color: rgba(127, 29, 29, 0.6); box-shadow: 0 0 15px rgba(127, 29, 29, 0.1); } 50% { border-color: rgba(220, 38, 38, 1); box-shadow: 0 0 30px rgba(220, 38, 38, 0.4); } 100% { border-color: rgba(127, 29, 29, 0.6); box-shadow: 0 0 15px rgba(127, 29, 29, 0.1); } }
+      @keyframes pulse-cyan { 0% { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 15px rgba(6, 182, 212, 0.1); } 50% { border-color: rgba(34, 211, 238, 1); box-shadow: 0 0 30px rgba(34, 211, 238, 0.4); } 100% { border-color: rgba(6, 182, 212, 0.6); box-shadow: 0 0 15px rgba(6, 182, 212, 0.1); } }
+      @keyframes glitch { 0% { text-shadow: 2px 2px 0px #ff0000, -2px -2px 0px #00ff00; transform: translate(0); } 20% { text-shadow: -2px 2px 0px #ff0000, 2px -2px 0px #00ff00; transform: translate(-1px, 1px); } 40% { text-shadow: 2px -2px 0px #ff0000, -2px 2px 0px #00ff00; transform: translate(1px, -1px); } 100% { text-shadow: 2px 2px 0px #ff0000, -2px -2px 0px #00ff00; transform: translate(0); } }
+
       .cursor::after { content: ''; display: inline-block; width: 0.6em; height: 1.2em; background: currentColor; margin-left: 4px; vertical-align: middle; animation: blink 1s step-end infinite; }
       
+      /* CRT EFFECT */
+      #dialogue-overlay::before {
+        content: " ";
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+        z-index: 2;
+        background-size: 100% 2px, 3px 100%;
+        pointer-events: none;
+      }
+
       /* DEMON THEME */
       .theme-demon {
-        border-color: rgba(127, 29, 29, 0.8);
-        box-shadow: 0 0 30px rgba(127, 29, 29, 0.2);
+        animation: pulse-red 3s infinite;
       }
-      .theme-demon #speaker-label { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
-      .theme-demon p { color: #fee2e2; }
-      .theme-demon .cursor::after { background: #ef4444; }
+      .theme-demon #speaker-label { color: #ef4444; text-shadow: 0 0 10px rgba(239, 68, 68, 0.8); }
+      .theme-demon p { color: #fecaca; text-shadow: 2px 0 #7f1d1d; }
+      .theme-demon .cursor::after { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+      .theme-demon p { animation: glitch 3s infinite alternate-reverse; }
 
       /* WIFE THEME */
       .theme-wife {
-        border-color: rgba(6, 182, 212, 0.8);
-        box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
+        animation: pulse-cyan 4s infinite;
       }
-      .theme-wife #speaker-label { color: #22d3ee; text-shadow: 0 0 10px rgba(34, 211, 238, 0.5); }
-      .theme-wife p { color: #ecfeff; }
-      .theme-wife .cursor::after { background: #22d3ee; }
+      .theme-wife #speaker-label { color: #67e8f9; text-shadow: 0 0 10px rgba(103, 232, 249, 0.8); }
+      .theme-wife p { color: #ecfeff; text-shadow: 0 0 5px rgba(34, 211, 238, 0.6); }
+      .theme-wife .cursor::after { background: #22d3ee; box-shadow: 0 0 10px #22d3ee; }
     `;
     document.head.appendChild(style);
 
