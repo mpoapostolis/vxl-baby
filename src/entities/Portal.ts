@@ -1,16 +1,16 @@
 import {
-  Scene,
-  Vector3,
-  MeshBuilder,
-  StandardMaterial,
-  Color3,
-  PointLight,
   ActionManager,
+  Color3,
   ExecuteCodeAction,
-  TransformNode,
+  MeshBuilder,
+  PointLight,
+  type Scene,
+  StandardMaterial,
+  type TransformNode,
+  Vector3,
 } from "@babylonjs/core";
-import { LevelManager } from "../managers/LevelManager";
 import { AudioManager } from "../managers/AudioManager";
+import { LevelManager } from "../managers/LevelManager";
 
 export class Portal {
   public mesh: TransformNode;
@@ -41,7 +41,7 @@ export class Portal {
         const levelManager = LevelManager.getInstance();
         levelManager.load(targetLevelId);
         AudioManager.getInstance().play("teleport");
-      }),
+      })
     );
 
     // 5. Self-contained Animation (Float & Rotate)

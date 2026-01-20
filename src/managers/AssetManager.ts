@@ -1,9 +1,9 @@
 import {
-  Scene,
+  type AbstractMesh,
+  type AnimationGroup,
   ImportMeshAsync,
+  type Scene,
   Sound,
-  AnimationGroup,
-  AbstractMesh,
 } from "@babylonjs/core";
 
 export interface LoadedMesh {

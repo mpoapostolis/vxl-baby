@@ -72,7 +72,7 @@ export interface PortalSpawnConfig {
 }
 
 export function isPortalSpawn(
-  config: SpawnConfig | PortalSpawnConfig,
+  config: SpawnConfig | PortalSpawnConfig
 ): config is PortalSpawnConfig {
   return config.entity === "portal";
 }

@@ -1,17 +1,17 @@
 import {
-  AbstractMesh,
-  AnimationGroup,
-  Vector3,
-  ArcRotateCamera,
-  ShadowGenerator,
-  SpotLight,
-  Scene,
+  type AbstractMesh,
+  type AnimationGroup,
+  type ArcRotateCamera,
   MeshBuilder,
   PhysicsAggregate,
   PhysicsShapeType,
+  type Scene,
+  type ShadowGenerator,
+  SpotLight,
+  Vector3,
 } from "@babylonjs/core";
-import { InputManager } from "../managers/InputManager";
 import { ANIMATIONS } from "../hero_anim";
+import { InputManager } from "../managers/InputManager";
 
 export class Player {
   public mesh: AbstractMesh;
@@ -29,18 +29,14 @@ export class Player {
     animationGroups: AnimationGroup[],
     camera: ArcRotateCamera,
     shadowGenerator: ShadowGenerator,
-    scene: Scene,
+    scene: Scene
   ) {
     this.mesh = mesh;
     this.camera = camera;
     this.input = InputManager.getInstance();
 
     // Create physics capsule
-    this.capsule = MeshBuilder.CreateCapsule(
-      "playerCapsule",
-      { height: 2, radius: 0.25 },
-      scene,
-    );
+    this.capsule = MeshBuilder.CreateCapsule("playerCapsule", { height: 2, radius: 0.25 }, scene);
     this.capsule.position = new Vector3(0, 1, 0);
     this.capsule.isVisible = false;
     this.capsule.visibility = 0.4;
@@ -54,7 +50,7 @@ export class Player {
       this.capsule,
       PhysicsShapeType.CAPSULE,
       { mass: 1, friction: 0.5, restitution: 0 },
-      scene,
+      scene
     );
 
     // Lock rotation so capsule stays upright
@@ -63,9 +59,7 @@ export class Player {
     });
 
     // Setup animations
-    this.anims = new Map<string, AnimationGroup>(
-      animationGroups.map((ag) => [ag.name, ag]),
-    );
+    this.anims = new Map<string, AnimationGroup>(animationGroups.map((ag) => [ag.name, ag]));
     scene.stopAllAnimations();
 
     // Add shadow caster
@@ -78,7 +72,7 @@ export class Player {
       Vector3.Forward(),
       Math.PI / 2,
       10_000,
-      scene,
+      scene
     );
     this.spotLight.position.y = 2;
     this.spotLight.parent = this.mesh;
@@ -124,11 +118,7 @@ export class Player {
       moveVec.y = 0;
       // Set horizontal velocity while preserving vertical (gravity)
       this.physicsAggregate.body.setLinearVelocity(
-        new Vector3(
-          moveVec.x * this.moveSpeed,
-          currentVelocity.y,
-          moveVec.z * this.moveSpeed,
-        ),
+        new Vector3(moveVec.x * this.moveSpeed, currentVelocity.y, moveVec.z * this.moveSpeed)
       );
 
       let animToPlay = ANIMATIONS.Run;
@@ -144,9 +134,7 @@ export class Player {
       }
     } else {
       // Stop horizontal movement but keep vertical velocity
-      this.physicsAggregate.body.setLinearVelocity(
-        new Vector3(0, currentVelocity.y, 0),
-      );
+      this.physicsAggregate.body.setLinearVelocity(new Vector3(0, currentVelocity.y, 0));
 
       const idle = this.anims.get(ANIMATIONS.Idle_Neutral);
       if (idle && !idle.isPlaying) {

@@ -1,24 +1,24 @@
 import {
-  Scene,
   ArcRotateCamera,
-  HemisphericLight,
-  SpotLight,
-  ShadowGenerator,
-  DefaultRenderingPipeline,
-  Vector3,
   Color3,
   Color4,
-  Mesh,
+  DefaultRenderingPipeline,
+  HemisphericLight,
+  type Mesh,
   PhysicsBody,
   PhysicsMotionType,
   PhysicsShapeMesh,
+  Scene,
+  ShadowGenerator,
+  SpotLight,
+  Vector3,
 } from "@babylonjs/core";
 import { Engine } from "../core/Engine";
+import { Player } from "../entities/Player";
+import type { Portal } from "../entities/Portal";
+import { EntityFactory } from "../factories/EntityFactory";
 import { AssetManager } from "../managers/AssetManager";
 import { InputManager } from "../managers/InputManager";
-import { Player } from "../entities/Player";
-import { Portal } from "../entities/Portal";
-import { EntityFactory } from "../factories/EntityFactory";
 import { getHavokPlugin } from "../physics";
 
 export interface LevelConfig {
@@ -87,7 +87,7 @@ export abstract class BaseLevel {
       Math.PI / 2,
       this.config.cameraRadius,
       Vector3.Zero(),
-      this.scene,
+      this.scene
     );
     this.camera.upperBetaLimit = this.config.cameraBeta;
     this.camera.lowerBetaLimit = this.config.cameraBeta;
@@ -105,7 +105,7 @@ export abstract class BaseLevel {
       Vector3.Forward(),
       Math.PI / 4,
       30,
-      this.scene,
+      this.scene
     );
     this.flashlight.parent = this.camera;
     this.flashlight.intensity = this.config.flashlightIntensity;
@@ -116,11 +116,7 @@ export abstract class BaseLevel {
     this.shadowGenerator.blurKernel = 32;
 
     // Entity Factory
-    this.entityFactory = new EntityFactory(
-      this.scene,
-      this.shadowGenerator,
-      this.assetManager
-    );
+    this.entityFactory = new EntityFactory(this.scene, this.shadowGenerator, this.assetManager);
 
     // Atmosphere
     this.scene.clearColor = new Color4(...this.config.clearColor);
@@ -133,55 +129,38 @@ export abstract class BaseLevel {
 
     // Pipeline
     if (this.config.pipeline) {
-      this.pipeline = new DefaultRenderingPipeline(
-        "pipeline",
-        true,
-        this.scene,
-        [this.camera],
-      );
+      this.pipeline = new DefaultRenderingPipeline("pipeline", true, this.scene, [this.camera]);
       this.pipeline.grainEnabled = this.config.pipeline.grain > 0;
       this.pipeline.grain.intensity = this.config.pipeline.grain;
       this.pipeline.grain.animated = true;
 
-      this.pipeline.chromaticAberrationEnabled =
-        this.config.pipeline.chromaticAberration > 0;
-      this.pipeline.chromaticAberration.aberrationAmount =
-        this.config.pipeline.chromaticAberration;
+      this.pipeline.chromaticAberrationEnabled = this.config.pipeline.chromaticAberration > 0;
+      this.pipeline.chromaticAberration.aberrationAmount = this.config.pipeline.chromaticAberration;
 
       this.pipeline.imageProcessingEnabled = true;
-      this.pipeline.imageProcessing.vignetteEnabled =
-        this.config.pipeline.vignette > 0;
-      this.pipeline.imageProcessing.vignetteWeight =
-        this.config.pipeline.vignetteWeight;
+      this.pipeline.imageProcessing.vignetteEnabled = this.config.pipeline.vignette > 0;
+      this.pipeline.imageProcessing.vignetteWeight = this.config.pipeline.vignetteWeight;
       this.pipeline.imageProcessing.contrast = this.config.pipeline.contrast;
       this.pipeline.imageProcessing.exposure = this.config.pipeline.exposure;
     }
 
     this.inputManager.init(this.scene);
 
-    const playerData = await this.assetManager.loadMesh(
-      "/assets/man.glb",
-      this.scene,
-    );
+    const playerData = await this.assetManager.loadMesh("/assets/man.glb", this.scene);
     const rootMesh = playerData.meshes[0];
     this.player = new Player(
       rootMesh!,
       playerData.animationGroups,
       this.camera,
       this.shadowGenerator,
-      this.scene,
+      this.scene
     );
 
     await this.onLoad();
   }
 
   public setupStaticMeshPhysics(mesh: Mesh): void {
-    const body = new PhysicsBody(
-      mesh,
-      PhysicsMotionType.STATIC,
-      false,
-      this.scene,
-    );
+    const body = new PhysicsBody(mesh, PhysicsMotionType.STATIC, false, this.scene);
     body.shape = new PhysicsShapeMesh(mesh, this.scene);
   }
 

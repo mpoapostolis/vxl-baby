@@ -1,15 +1,10 @@
-import { Mesh, Vector3 } from "@babylonjs/core";
-import { BaseLevel } from "./BaseLevel";
+import { type Mesh, Vector3 } from "@babylonjs/core";
+import type { LevelConfig, LevelEffect, Trigger, TriggerAction } from "../config/levels";
+import type { NPC } from "../entities/NPC";
+import type { Portal } from "../entities/Portal";
 import { AudioManager } from "../managers/AudioManager";
 import { DialogueManager } from "../managers/DialogueManager";
-import { NPC } from "../entities/NPC";
-import { Portal } from "../entities/Portal";
-import type {
-  LevelConfig,
-  Trigger,
-  LevelEffect,
-  TriggerAction,
-} from "../config/levels";
+import { BaseLevel } from "./BaseLevel";
 
 interface TriggerState {
   triggered: boolean;
@@ -103,11 +98,7 @@ export class Level extends BaseLevel {
       const position = new Vector3(...spawn.position);
 
       if (spawn.type === "npc") {
-        const npc = await this.entityFactory.spawnNPC(
-          spawn.entity,
-          position,
-          spawn.scale
-        );
+        const npc = await this.entityFactory.spawnNPC(spawn.entity, position, spawn.scale);
         this.npcs.set(spawn.entity, npc);
       } else if (spawn.type === "portal") {
         const portal = this.entityFactory.spawnPortal(position, spawn.targetLevel);
@@ -206,8 +197,7 @@ export class Level extends BaseLevel {
       case "heartbeatVignette":
         if (this.pipeline) {
           const time = Date.now() * effect.speed;
-          const heartbeat =
-            (Math.sin(time) + Math.sin(time * 2) + Math.sin(time * 0.5)) / 3;
+          const heartbeat = (Math.sin(time) + Math.sin(time * 2) + Math.sin(time * 0.5)) / 3;
           this.pipeline.imageProcessing.vignetteWeight =
             effect.baseWeight + heartbeat * effect.amplitude;
         }

@@ -1,16 +1,14 @@
-import { Engine } from "../core/Engine";
+import type { Engine } from "../core/Engine";
 import type { BaseLevel } from "../levels/BaseLevel";
-import { AudioManager } from "./AudioManager";
 import { DialogueManager } from "./DialogueManager";
 
 export class LevelManager {
   private static instance: LevelManager;
-  private engine: Engine;
   private currentLevel?: BaseLevel;
   private levels: Map<string, () => BaseLevel> = new Map();
 
-  private constructor(engine: Engine) {
-    this.engine = engine;
+  private constructor(_engine: Engine) {
+    // Engine stored for potential future use
   }
 
   public static getInstance(engine?: Engine): LevelManager {

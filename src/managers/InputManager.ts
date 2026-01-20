@@ -1,4 +1,4 @@
-import { Scene, KeyboardEventTypes } from "@babylonjs/core";
+import { KeyboardEventTypes, type Scene } from "@babylonjs/core";
 
 export class InputManager {
   private static instance: InputManager;

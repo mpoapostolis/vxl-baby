@@ -1,8 +1,8 @@
 import {
-  AbstractMesh,
-  AnimationGroup,
+  type AbstractMesh,
+  type AnimationGroup,
+  type ShadowGenerator,
   Vector3,
-  ShadowGenerator,
 } from "@babylonjs/core";
 import type { NPCConfig } from "../config/entities";
 
@@ -16,7 +16,7 @@ export class NPC {
     shadowGenerator: ShadowGenerator,
     position: Vector3,
     config: NPCConfig,
-    scaleOverride?: number,
+    scaleOverride?: number
   ) {
     this.mesh = meshes[0]!;
     this.anims = animationGroups;
@@ -36,12 +36,10 @@ export class NPC {
 
   private findIdleAnimation(
     animationGroups: AnimationGroup[],
-    idleAnimation: string | string[],
+    idleAnimation: string | string[]
   ): AnimationGroup | undefined {
     if (Array.isArray(idleAnimation)) {
-      return animationGroups.find((a) =>
-        idleAnimation.some((name) => a.name.includes(name)),
-      );
+      return animationGroups.find((a) => idleAnimation.some((name) => a.name.includes(name)));
     }
     return animationGroups.find((a) => a.name === idleAnimation);
   }

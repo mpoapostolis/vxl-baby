@@ -147,10 +147,7 @@ export class DialogueManager {
   }
 
   private showNextLine(): void {
-    if (
-      !this.currentDialogue ||
-      this.currentLineIndex >= this.currentDialogue.lines.length
-    ) {
+    if (!this.currentDialogue || this.currentLineIndex >= this.currentDialogue.lines.length) {
       this.end();
       return;
     }
