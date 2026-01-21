@@ -1,0 +1,31 @@
+---
+import Layout from "../layouts/Layout.astro";
+import EditorOutliner from "../components/editor/EditorOutliner.astro";
+import EditorViewport from "../components/editor/EditorViewport.astro";
+import EditorInspector from "../components/editor/EditorInspector.astro";
+import EditorModals from "../components/editor/EditorModals.astro";
+import "../styles/global.css";
+---
+
+<Layout>
+  <!-- Main Editor Container: Blender Dark Gray #1d1d1d background for gaps -->
+  <div
+    x-data="levelEditor"
+    class="flex h-screen w-screen overflow-hidden bg-[#1d1d1d] text-[#ccc] font-sans text-[12px] p-1 gap-1"
+  >
+    <EditorOutliner />
+    <EditorViewport />
+    <EditorInspector />
+    <EditorModals />
+  </div>
+</Layout>
+
+<script>
+  import Alpine from "alpinejs";
+  import { editorLogic } from "../components/editor/EditorLogic";
+
+  // Register Alpine logic
+  Alpine.data("levelEditor", editorLogic);
+
+  Alpine.start();
+</script>

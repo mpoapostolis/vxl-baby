@@ -1,0 +1,131 @@
+---
+
+---
+
+<aside
+  class="w-64 blender-panel shrink-0 z-10 flex flex-col h-full overflow-hidden"
+>
+  <!-- Header -->
+  <div class="blender-header select-none justify-between h-auto py-1">
+    <div class="flex items-center gap-2">
+      <span class="text-[14px]">📑</span>
+      <span class="hidden md:inline">Outliner</span>
+    </div>
+
+    <div class="flex gap-1 items-center">
+      <input
+        type="text"
+        placeholder="Filter..."
+        class="bg-[var(--bg-input)] border border-[var(--border-light)] rounded px-1.5 py-0.5 text-[9px] w-20 text-[var(--text-main)] focus:w-28 transition-all outline-none"
+        x-model="outlinerSearch"
+      />
+
+      <!-- Quick Add Menu -->
+      <div class="relative" x-data="{ showMenu: false }">
+        <button
+          @click="showMenu = !showMenu"
+          class="text-[var(--text-muted)] hover:text-white px-1.5 py-0.5 hover:bg-[var(--bg-input-hover)] rounded transition-colors"
+          title="Add Entity"
+        >
+          <span class="text-xs font-bold">+</span>
+        </button>
+        <div
+          x-show="showMenu"
+          @click.away="showMenu = false"
+          x-transition
+          class="absolute right-0 top-full mt-1 bg-[var(--bg-panel)] border border-[var(--border-light)] rounded shadow-lg z-50 min-w-[100px]"
+        >
+          <button
+            @click="addEntity('npc'); showMenu = false"
+            class="w-full text-left px-3 py-1.5 text-[10px] hover:bg-[var(--bg-input-hover)] flex items-center gap-2"
+          >
+            <span>👤</span> NPC
+          </button>
+          <button
+            @click="addEntity('portal'); showMenu = false"
+            class="w-full text-left px-3 py-1.5 text-[10px] hover:bg-[var(--bg-input-hover)] flex items-center gap-2"
+          >
+            <span>🚪</span> Portal
+          </button>
+          <button
+            @click="addEntity('prop'); showMenu = false"
+            class="w-full text-left px-3 py-1.5 text-[10px] hover:bg-[var(--bg-input-hover)] flex items-center gap-2"
+          >
+            <span>📦</span> Prop
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scene Graph List -->
+  <div class="flex-1 overflow-y-auto p-0 bg-[var(--bg-input)]">
+    <template x-if="!config.entities || config.entities.length === 0">
+      <div
+        class="flex flex-col items-center justify-center h-full text-[var(--text-dim)] select-none opacity-50"
+      >
+        <span class="text-2xl mb-2">📦</span>
+        <span class="text-[10px] italic">Scene is empty</span>
+      </div>
+    </template>
+
+    <div class="mb-0.5">
+      <div
+        class="flex items-center px-3 py-1.5 bg-[var(--bg-header)] text-[var(--text-main)] font-bold select-none cursor-default border-b border-[var(--border-dark)]"
+      >
+        <span class="mr-2 text-[10px] text-[var(--text-muted)]">▼</span>
+        <span class="text-[11px]" x-text="config.name || 'Untitled Level'"
+        ></span>
+      </div>
+
+      <div class="flex flex-col">
+        <template x-for="(entity, idx) in config.entities" :key="idx">
+          <div
+            x-show="!outlinerSearch || getEntityName(entity).toLowerCase().includes(outlinerSearch.toLowerCase())"
+            @click="selectEntity(idx)"
+            class="relative flex items-center h-7 px-3 cursor-pointer group transition-colors select-none border-b border-[#222]"
+            :class="selectedEntityIdx === idx ? 'bg-[#2a3a55]' : 'hover:bg-[#1a1a1a]'"
+          >
+            <div
+              class="absolute left-0 top-0 bottom-0 w-[3px]"
+              :class="selectedEntityIdx === idx ? 'bg-[#3b82f6]' : 'bg-transparent'"
+            >
+            </div>
+
+            <span
+              class="mr-2 text-[12px] w-5 text-center"
+              :class="{
+                'icon-npc': entity.type === 'npc',
+                'icon-prop': entity.type === 'prop',
+                'icon-portal': entity.type === 'portal'
+              }"
+              x-text="getIcon(entity.type)"></span>
+
+            <span
+              class="truncate text-[11px] flex-1 font-medium"
+              :class="selectedEntityIdx === idx ? 'text-white' : 'text-[var(--text-muted)] group-hover:text-[var(--text-main)]'"
+              x-text="getEntityName(entity)"></span>
+
+            <button
+              @click.stop="removeEntity(idx)"
+              class="hidden group-hover:flex items-center justify-center w-5 h-5 rounded hover:bg-black/40 text-[10px] text-red-400/70 hover:text-red-400 transition-colors ml-2"
+              title="Delete Entity"
+            >
+              ×
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom: Asset Add Button -->
+  <div class="p-2 border-t border-[var(--border-dark)] bg-[var(--bg-header)]">
+    <button
+      @click="openAssetBrowser()"
+      class="w-full bg-[var(--bg-input)] hover:bg-[var(--bg-input-hover)] border border-[var(--border-light)] py-1.5 rounded text-[var(--text-main)] flex items-center justify-center gap-2 transition-all text-[11px] font-medium shadow-sm hover:border-[var(--text-muted)]"
+    >
+      <span>📦</span> Open Asset Browser
+    </button>
+  </div>
+</aside>

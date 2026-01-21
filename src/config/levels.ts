@@ -1,3 +1,6 @@
+// removed DialogueConfig import to avoid confusion if we are moving to inline
+// import type { DialogueConfig } from "./entities";
+
 import type { DialogueConfig } from "./entities";
 
 export interface PipelineConfig {
@@ -15,20 +18,66 @@ export interface EnvironmentConfig {
   position?: [number, number, number];
 }
 
+export interface NPCRequirement {
+  type: "item" | "level" | "energy" | "money";
+  value: string | number;
+  itemId?: string; // If type is item
+}
+
+export interface NPCReward {
+  type: "item" | "energy" | "money";
+  value: string | number;
+  itemId?: string; // If type is item
+}
+
+export interface DialogueLine {
+  speaker: string;
+  text: string;
+  duration?: number;
+}
+
 export interface NPCSpawn {
   type: "npc";
+  name?: string; // Editor display name
   entity: string;
   position: [number, number, number];
+  rotation?: [number, number, number];
   scale?: number;
+  // Extended RPG features
+  requirements?: NPCRequirement[];
+  rewards?: NPCReward[];
+  // Dialogue when requirements NOT met
+  failDialogue?: DialogueLine[];
+  // Dialogue when requirements ARE met (rewards given after)
+  successDialogue?: DialogueLine[];
+  animations?: {
+    idle?: string;
+    interact?: string;
+  };
 }
 
 export interface PortalSpawn {
   type: "portal";
+  name?: string;
   position: [number, number, number];
   targetLevel: string;
 }
 
-export type EntitySpawn = NPCSpawn | PortalSpawn;
+export interface PropSpawn {
+  type: "prop";
+  asset: string;
+  name?: string;
+  position: [number, number, number];
+  rotation?: [number, number, number];
+  scaling?: [number, number, number];
+  physics?: {
+    enabled: boolean;
+    mass: number; // 0 = Static, >0 = Dynamic
+    impostor: "box" | "sphere" | "mesh" | "capsule";
+  };
+}
+
+export type EntitySpawn = NPCSpawn | PortalSpawn | PropSpawn;
 
 export interface ProximityTrigger {
   type: "proximity";
@@ -107,6 +156,7 @@ export interface LevelConfig {
   triggers?: Trigger[];
 
   // Effects
+  // Effects
   effects?: LevelEffect[];
 }
 
@@ -151,7 +201,11 @@ export const LEVELS: Record<string, LevelConfig> = {
         lines: [
           { speaker: "Wife", text: "Where have you been?", duration: 3000 },
           { speaker: "Wife", text: "I was so worried...", duration: 3000 },
-          { speaker: "Wife", text: "Please, don't leave me again.", duration: 3500 },
+          {
+            speaker: "Wife",
+            text: "Please, don't leave me again.",
+            duration: 3500,
+          },
         ],
       },
     ],
@@ -204,7 +258,11 @@ export const LEVELS: Record<string, LevelConfig> = {
         id: "demon_intro",
         lines: [
           { speaker: "Demon", text: "The void...", duration: 2500 },
-          { speaker: "Demon", text: "It hungers for you, traveler.", duration: 3500 },
+          {
+            speaker: "Demon",
+            text: "It hungers for you, traveler.",
+            duration: 3500,
+          },
           {
             speaker: "Demon",
             text: "Your light is but a flickering candle in the eternal dark.",
@@ -250,4 +308,13 @@ export const LEVELS: Record<string, LevelConfig> = {
       },
     ],
   },
+};
+
+export const DEFAULT_CONFIG: Partial<LevelConfig> = {
+  ambientIntensity: 0.5,
+  flashlightIntensity: 3,
+  clearColor: [0.05, 0.05, 0.1, 1],
+  fogEnabled: false,
+  cameraRadius: 10,
+  cameraBeta: Math.PI / 3,
 };

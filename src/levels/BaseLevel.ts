@@ -20,34 +20,10 @@ import { EntityFactory } from "../factories/EntityFactory";
 import { AssetManager } from "../managers/AssetManager";
 import { InputManager } from "../managers/InputManager";
 import { getHavokPlugin } from "../physics";
-
-export interface LevelConfig {
-  ambientIntensity: number;
-  flashlightIntensity: number;
-  clearColor: [number, number, number, number];
-  fogEnabled: boolean;
-  fogColor?: [number, number, number];
-  fogDensity?: number;
-  pipeline?: {
-    grain: number;
-    vignette: number;
-    vignetteWeight: number;
-    chromaticAberration: number;
-    contrast: number;
-    exposure: number;
-  };
-  cameraRadius: number;
-  cameraBeta: number;
-}
-
-export const DEFAULT_CONFIG: LevelConfig = {
-  ambientIntensity: 0.5,
-  flashlightIntensity: 3,
-  clearColor: [0.05, 0.05, 0.1, 1],
-  fogEnabled: false,
-  cameraRadius: 10,
-  cameraBeta: Math.PI / 3,
-};
+import {
+  type LevelConfig,
+  DEFAULT_CONFIG as SHARED_DEFAULT_CONFIG,
+} from "../config/levels";
 
 export abstract class BaseLevel {
   protected engine: Engine;
@@ -72,7 +48,7 @@ export abstract class BaseLevel {
     this.engine = Engine.getInstance();
     this.assetManager = AssetManager.getInstance();
     this.inputManager = InputManager.getInstance();
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = { ...SHARED_DEFAULT_CONFIG, ...config } as LevelConfig;
   }
 
   public async load(): Promise<void> {
@@ -85,14 +61,14 @@ export abstract class BaseLevel {
       "camera",
       Math.PI / 2,
       Math.PI / 2,
-      this.config.cameraRadius,
+      this.config.cameraRadius ?? 10,
       Vector3.Zero(),
-      this.scene
+      this.scene,
     );
-    this.camera.upperBetaLimit = this.config.cameraBeta;
-    this.camera.lowerBetaLimit = this.config.cameraBeta;
-    this.camera.upperRadiusLimit = this.config.cameraRadius;
-    this.camera.lowerRadiusLimit = this.config.cameraRadius;
+    this.camera.upperBetaLimit = this.config.cameraBeta ?? Math.PI / 3;
+    this.camera.lowerBetaLimit = this.config.cameraBeta ?? Math.PI / 3;
+    this.camera.upperRadiusLimit = this.config.cameraRadius ?? 10;
+    this.camera.lowerRadiusLimit = this.config.cameraRadius ?? 10;
     this.camera.attachControl(this.engine.canvas, true);
 
     // Lighting setup
@@ -105,10 +81,10 @@ export abstract class BaseLevel {
       Vector3.Forward(),
       Math.PI / 4,
       30,
-      this.scene
+      this.scene,
     );
     this.flashlight.parent = this.camera;
-    this.flashlight.intensity = this.config.flashlightIntensity;
+    this.flashlight.intensity = this.config.flashlightIntensity ?? 1.5;
 
     // Shadow Generator
     this.shadowGenerator = new ShadowGenerator(1024, this.flashlight);
@@ -116,7 +92,11 @@ export abstract class BaseLevel {
     this.shadowGenerator.blurKernel = 32;
 
     // Entity Factory
-    this.entityFactory = new EntityFactory(this.scene, this.shadowGenerator, this.assetManager);
+    this.entityFactory = new EntityFactory(
+      this.scene,
+      this.shadowGenerator,
+      this.assetManager,
+    );
 
     // Atmosphere
     this.scene.clearColor = new Color4(...this.config.clearColor);
@@ -129,39 +109,115 @@ export abstract class BaseLevel {
 
     // Pipeline
     if (this.config.pipeline) {
-      this.pipeline = new DefaultRenderingPipeline("pipeline", true, this.scene, [this.camera]);
+      this.pipeline = new DefaultRenderingPipeline(
+        "pipeline",
+        true,
+        this.scene,
+        [this.camera],
+      );
       this.pipeline.grainEnabled = this.config.pipeline.grain > 0;
       this.pipeline.grain.intensity = this.config.pipeline.grain;
       this.pipeline.grain.animated = true;
 
-      this.pipeline.chromaticAberrationEnabled = this.config.pipeline.chromaticAberration > 0;
-      this.pipeline.chromaticAberration.aberrationAmount = this.config.pipeline.chromaticAberration;
+      this.pipeline.chromaticAberrationEnabled =
+        this.config.pipeline.chromaticAberration > 0;
+      this.pipeline.chromaticAberration.aberrationAmount =
+        this.config.pipeline.chromaticAberration;
 
       this.pipeline.imageProcessingEnabled = true;
-      this.pipeline.imageProcessing.vignetteEnabled = this.config.pipeline.vignette > 0;
-      this.pipeline.imageProcessing.vignetteWeight = this.config.pipeline.vignetteWeight;
+      this.pipeline.imageProcessing.vignetteEnabled =
+        this.config.pipeline.vignette > 0;
+      this.pipeline.imageProcessing.vignetteWeight =
+        this.config.pipeline.vignetteWeight;
       this.pipeline.imageProcessing.contrast = this.config.pipeline.contrast;
       this.pipeline.imageProcessing.exposure = this.config.pipeline.exposure;
     }
 
     this.inputManager.init(this.scene);
 
-    const playerData = await this.assetManager.loadMesh("/assets/man.glb", this.scene);
+    const playerData = await this.assetManager.loadMesh(
+      "/assets/man.glb",
+      this.scene,
+    );
     const rootMesh = playerData.meshes[0];
     this.player = new Player(
       rootMesh!,
       playerData.animationGroups,
       this.camera,
       this.shadowGenerator,
-      this.scene
+      this.scene,
     );
 
     await this.onLoad();
   }
 
   public setupStaticMeshPhysics(mesh: Mesh): void {
-    const body = new PhysicsBody(mesh, PhysicsMotionType.STATIC, false, this.scene);
+    const body = new PhysicsBody(
+      mesh,
+      PhysicsMotionType.STATIC,
+      false,
+      this.scene,
+    );
     body.shape = new PhysicsShapeMesh(mesh, this.scene);
+  }
+
+  public hotUpdate(config: LevelConfig): void {
+    this.config = { ...this.config, ...config };
+
+    // Update Ambient Light
+    if (this.light) {
+      this.light.intensity = this.config.ambientIntensity;
+    }
+
+    // Update Flashlight
+    if (this.flashlight) {
+      this.flashlight.intensity = this.config.flashlightIntensity ?? 1.5;
+    }
+
+    // Update Clear Color
+    if (this.scene) {
+      this.scene.clearColor = new Color4(...this.config.clearColor);
+    }
+
+    // Update Fog
+    if (this.scene) {
+      if (this.config.fogEnabled && this.config.fogColor) {
+        this.scene.fogMode = Scene.FOGMODE_EXP2;
+        this.scene.fogColor = new Color3(...this.config.fogColor);
+        if (this.config.fogDensity !== undefined) {
+          this.scene.fogDensity = this.config.fogDensity;
+        }
+      } else {
+        this.scene.fogMode = Scene.FOGMODE_NONE;
+      }
+    }
+
+    // Update Pipeline
+    if (this.pipeline && this.config.pipeline) {
+      this.pipeline.grainEnabled = this.config.pipeline.grain > 0;
+      this.pipeline.grain.intensity = this.config.pipeline.grain;
+
+      this.pipeline.imageProcessing.vignetteEnabled =
+        this.config.pipeline.vignette > 0;
+      this.pipeline.imageProcessing.vignetteWeight =
+        this.config.pipeline.vignette;
+
+      this.pipeline.chromaticAberrationEnabled =
+        this.config.pipeline.chromaticAberration > 0;
+      this.pipeline.chromaticAberration.aberrationAmount =
+        this.config.pipeline.chromaticAberration;
+
+      this.pipeline.imageProcessing.contrast = this.config.pipeline.contrast;
+      this.pipeline.imageProcessing.exposure = this.config.pipeline.exposure;
+    }
+
+    // Update Camera limits
+    if (this.camera) {
+      this.camera.upperBetaLimit = this.config.cameraBeta ?? Math.PI / 3;
+      this.camera.lowerBetaLimit = this.config.cameraBeta ?? Math.PI / 3;
+      this.camera.upperRadiusLimit = this.config.cameraRadius ?? 10;
+      this.camera.lowerRadiusLimit = this.config.cameraRadius ?? 10;
+    }
   }
 
   protected abstract onLoad(): Promise<void>;
@@ -180,6 +236,7 @@ export abstract class BaseLevel {
   }
 
   public render(): void {
-    this.scene?.render();
+    if (!this.scene || !this.camera) return;
+    this.scene.render();
   }
 }

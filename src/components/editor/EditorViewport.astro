@@ -1,0 +1,121 @@
+<main
+  class="flex-1 relative flex flex-col gap-0 overflow-hidden bg-[var(--bg-app)]"
+>
+  <!-- Toolbar -->
+  <div
+    class="h-9 bg-[var(--bg-header)] border-b border-[var(--border-dark)] flex items-center px-3 justify-between select-none"
+  >
+    <!-- Left: Modes / Levels -->
+    <div class="flex items-center gap-3">
+      <!-- Logic Level Selector -->
+      <div
+        class="flex items-center gap-2 bg-[var(--bg-input)] rounded px-2 py-0.5 border border-[var(--border-light)]"
+      >
+        <span
+          class="text-[10px] text-[var(--text-muted)] font-bold tracking-wider"
+          >LEVEL</span
+        >
+        <select
+          x-model="currentLevelId"
+          @change="loadLevel(currentLevelId)"
+          class="bg-transparent text-[11px] text-[var(--text-main)] outline-none border-none cursor-pointer"
+        >
+          <option value="level1">Level 1</option>
+          <option value="level2">Level 2</option>
+        </select>
+      </div>
+
+      <div class="w-px h-4 bg-[var(--border-light)]"></div>
+
+      <!-- Transform Tools -->
+      <div
+        class="flex bg-[var(--bg-input)] rounded p-0.5 border border-[var(--border-light)] gap-0.5"
+      >
+        <button
+          @click="setTransformMode('position')"
+          class="px-3 py-1 rounded-[2px] text-[10px] font-bold transition-all relative overflow-hidden"
+          :class="transformMode === 'position' ? 'bg-[#3b82f6] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg-input-hover)] hover:text-[var(--text-main)]'"
+          title="Move Tool (G)"
+        >
+          MOVE
+        </button>
+        <button
+          @click="setTransformMode('rotation')"
+          class="px-3 py-1 rounded-[2px] text-[10px] font-bold transition-all relative overflow-hidden"
+          :class="transformMode === 'rotation' ? 'bg-[#3b82f6] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg-input-hover)] hover:text-[var(--text-main)]'"
+          title="Rotate Tool (R)"
+        >
+          ROTATE
+        </button>
+        <button
+          @click="setTransformMode('scale')"
+          class="px-3 py-1 rounded-[2px] text-[10px] font-bold transition-all relative overflow-hidden"
+          :class="transformMode === 'scale' ? 'bg-[#3b82f6] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--bg-input-hover)] hover:text-[var(--text-main)]'"
+          title="Scale Tool (S)"
+        >
+          SCALE
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Actions -->
+    <div class="flex items-center gap-2">
+      <button
+        @click="copyJson"
+        class="blender-btn"
+        :class="copyStatus === 'Copied!' ? '!border-green-800 !bg-green-900/40 !text-green-400' : ''"
+        :title="copyStatus === 'Copied!' ? 'Copied to Clipboard' : 'Copy Level JSON'"
+      >
+        <span x-show="copyStatus !== 'Copied!'">📋</span>
+        <span x-text="copyStatus || 'Copy JSON'"></span>
+      </button>
+
+      <button
+        @click="downloadJson"
+        class="blender-btn"
+        title="Download .json file"
+      >
+        <span>💾</span>
+        <span>Export</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Canvas Container -->
+  <div class="flex-1 relative shadow-inner" id="canvas-container">
+    <canvas
+      id="game-canvas"
+      class="block w-full h-full outline-none focus:outline-none"></canvas>
+
+    <!-- Overlay Info (Top Left) -->
+    <div
+      class="absolute top-3 left-3 pointer-events-none flex flex-col gap-1 select-none"
+    >
+      <div
+        class="text-white/60 text-[10px] font-mono bg-black/40 px-2 py-1 rounded backdrop-blur-sm border border-white/5 shadow-sm"
+      >
+        PERSPECTIVE
+      </div>
+    </div>
+
+    <!-- Selection Overlay (Bottom Right) -->
+    <div
+      class="absolute bottom-3 right-3 pointer-events-none select-none"
+      x-show="selectedEntityIdx !== -1"
+      x-transition.opacity.duration.200ms
+    >
+      <div
+        class="bg-[var(--bg-panel)]/90 backdrop-blur border border-[var(--border-light)] rounded px-3 py-1.5 shadow-lg flex items-center gap-3"
+      >
+        <div
+          class="w-1.5 h-1.5 rounded-full bg-[var(--accent-primary)] shadow-[0_0_8px_rgba(237,149,43,0.5)]"
+        >
+        </div>
+        <span
+          class="text-[10px] text-[var(--text-main)] font-mono font-bold tracking-wide"
+          x-text="config.entities[selectedEntityIdx]?.type?.toUpperCase() + ' SELECTED'"
+        ></span>
+      </div>
+    </div>
+  </div>
+</main>

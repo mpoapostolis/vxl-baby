@@ -1,0 +1,960 @@
+<aside
+  class="w-80 blender-panel shrink-0 z-10 flex flex-col h-full overflow-hidden"
+>
+  <div class="blender-header select-none">
+    <div class="flex items-center gap-2">
+      <span class="text-[14px]">⚙️</span>
+      <span>Properties</span>
+    </div>
+  </div>
+
+  <div class="p-0 flex-1 overflow-y-auto custom-scrollbar bg-[var(--bg-panel)]">
+    <!-- No Selection / Scene Settings -->
+    <template x-if="selectedEntityIdx === -1">
+      <div>
+        <div class="prop-group">
+          <div class="prop-group-header">SCENE SETTINGS</div>
+
+          <div class="space-y-1 p-2">
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >ID</label
+              >
+              <input
+                type="text"
+                x-model="config.id"
+                class="blender-input font-mono text-[11px] w-full"
+              />
+            </div>
+
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Name</label
+              >
+              <input
+                type="text"
+                x-model="config.name"
+                class="blender-input w-full"
+              />
+            </div>
+
+            <!-- BG Music -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >BG Music</label
+              >
+              <div class="flex-1 flex gap-1">
+                <input
+                  disabled
+                  x-model="config.music"
+                  placeholder="/assets/music/..."
+                  class="blender-input w-full"
+                />
+                <button
+                  @click="openAssetBrowser(null, 'music')"
+                  class="px-2 bg-[var(--bg-input)] hover:bg-[var(--bg-input-hover)] border border-[var(--border-light)] rounded select-none text-[10px]"
+                  >🎵</button
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-group mt-1">
+          <div class="prop-group-header">ENVIRONMENT</div>
+
+          <div class="space-y-1 p-2">
+            <!-- Environment Asset -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Asset</label
+              >
+              <div class="flex-1 flex gap-1">
+                <input
+                  type="text"
+                  x-model="config.environment.asset"
+                  class="blender-input w-full truncate"
+                />
+                <button
+                  @click="openAssetBrowser(null, 'environment')"
+                  class="px-2 bg-[var(--bg-input)] hover:bg-[var(--bg-input-hover)] border border-[var(--border-light)] rounded select-none text-[10px]"
+                  >📂</button
+                >
+              </div>
+            </div>
+
+            <!-- Environment Scale -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Scale</label
+              >
+              <input
+                type="number"
+                x-model.number="config.environment.scale"
+                @input="reloadLevelPromise()"
+                class="blender-input w-full"
+                step="0.5"
+              />
+            </div>
+
+            <!-- Environment Position -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Position</label
+              >
+              <div class="grid grid-cols-3 gap-1 w-full">
+                <div class="relative">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-500 pointer-events-none"
+                  >
+                    X
+                  </div>
+                  <input
+                    type="number"
+                    step="0.5"
+                    :value="config.environment.position ? config.environment.position[0] : 0"
+                    @input="if(!config.environment.position) config.environment.position = [0,0,0]; config.environment.position[0] = parseFloat($event.target.value); reloadLevelPromise()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <div class="relative">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-green-500 pointer-events-none"
+                  >
+                    Y
+                  </div>
+                  <input
+                    type="number"
+                    step="0.5"
+                    :value="config.environment.position ? config.environment.position[1] : 0"
+                    @input="if(!config.environment.position) config.environment.position = [0,0,0]; config.environment.position[1] = parseFloat($event.target.value); reloadLevelPromise()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <div class="relative">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-blue-500 pointer-events-none"
+                  >
+                    Z
+                  </div>
+                  <input
+                    type="number"
+                    step="0.5"
+                    :value="config.environment.position ? config.environment.position[2] : 0"
+                    @input="if(!config.environment.position) config.environment.position = [0,0,0]; config.environment.position[2] = parseFloat($event.target.value); reloadLevelPromise()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Ambient -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Ambient</label
+              >
+              <input
+                type="number"
+                x-model.number="config.ambientIntensity"
+                @input="hotUpdate"
+                class="blender-input w-full"
+                step="0.05"
+              />
+            </div>
+
+            <!-- Clear Color -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                >Clear Color</label
+              >
+              <div
+                class="flex items-center gap-2 bg-[var(--bg-input)] border border-[var(--border-light)] rounded p-1 w-full h-6"
+              >
+                <input
+                  type="color"
+                  :value="colorToHex(config.clearColor || [0,0,0])"
+                  @input="const rgb = hexToRgb($event.target.value); config.clearColor = [rgb.r, rgb.g, rgb.b, 1]; hotUpdate()"
+                  class="w-8 h-full border-none p-0 cursor-pointer bg-transparent"
+                />
+                <span
+                  class="text-[10px] font-mono text-[var(--text-dim)] flex-1 text-right pr-1"
+                  x-text="colorToHex(config.clearColor || [0,0,0])"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fog -->
+          <div class="px-2 py-2 border-t border-[var(--border-light)] mt-1">
+            <div class="flex items-center justify-between mb-2">
+              <span
+                class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider"
+                >Fog</span
+              >
+              <input
+                type="checkbox"
+                x-model="config.fogEnabled"
+                @change="hotUpdate"
+                class="accent-[var(--accent-primary)]"
+              />
+            </div>
+
+            <div x-show="config.fogEnabled" class="space-y-1">
+              <!-- Fog Color -->
+              <div class="flex items-center gap-2">
+                <label
+                  class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                  >Color</label
+                >
+                <div
+                  class="flex items-center gap-2 bg-[var(--bg-input)] border border-[var(--border-light)] rounded p-1 w-full h-6"
+                >
+                  <input
+                    type="color"
+                    :value="colorToHex(config.fogColor || [0.5,0.5,0.5])"
+                    @input="const rgb = hexToRgb($event.target.value); config.fogColor = [rgb.r, rgb.g, rgb.b]; hotUpdate()"
+                    class="w-8 h-full border-none p-0 cursor-pointer bg-transparent"
+                  />
+                  <span
+                    class="text-[10px] font-mono text-[var(--text-dim)] flex-1 text-right pr-1"
+                    x-text="colorToHex(config.fogColor || [0.5,0.5,0.5])"
+                  ></span>
+                </div>
+              </div>
+
+              <!-- Fog Density -->
+              <div class="flex items-center gap-2">
+                <label
+                  class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                  >Density</label
+                >
+                <input
+                  type="number"
+                  x-model.number="config.fogDensity"
+                  @input="hotUpdate"
+                  class="blender-input w-full"
+                  step="0.001"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-group mt-1">
+          <div class="prop-group-header">POST PROCESS</div>
+          <div class="p-2 space-y-1">
+            <template
+              x-for="setting in ['grain', 'vignette', 'chromaticAberration', 'contrast', 'exposure']"
+            >
+              <div class="flex items-center gap-2">
+                <label
+                  class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0 truncate"
+                  x-text="camelToTitle(setting)"></label>
+                <input
+                  type="number"
+                  x-model.number="config.pipeline[setting]"
+                  @input="hotUpdate"
+                  class="blender-input w-full text-center"
+                  :step="getPipelineRange(setting).step"
+                />
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Entity Selection -->
+    <template
+      x-if="selectedEntityIdx !== -1 && config.entities[selectedEntityIdx]"
+    >
+      <div>
+        <!-- Entity Header Panel -->
+        <div
+          class="p-3 bg-[var(--bg-input)] border-b border-[var(--border-light)] mb-2"
+        >
+          <div class="flex items-start gap-3">
+            <div
+              class="w-10 h-10 bg-[var(--bg-panel)] rounded flex items-center justify-center text-2xl border border-[var(--border-light)] shrink-0"
+            >
+              <span x-text="getIcon(config.entities[selectedEntityIdx].type)"
+              ></span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <input
+                type="text"
+                x-model="config.entities[selectedEntityIdx].name"
+                placeholder="Entity Name"
+                class="w-full bg-transparent text-[14px] font-bold text-[var(--text-main)] placeholder-[var(--text-dim)] border-b border-transparent hover:border-[var(--border-light)] focus:border-[var(--accent-secondary)] outline-none transition-colors px-0 py-0.5"
+              />
+              <div
+                class="text-[9px] text-[var(--accent-primary)] uppercase tracking-widest font-bold mt-0.5"
+                x-text="config.entities[selectedEntityIdx].type"
+              >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transform Group -->
+        <div class="prop-group">
+          <div class="prop-group-header">TRANSFORM</div>
+
+          <div class="space-y-1 p-2">
+            <!-- Position -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Location</label
+              >
+              <div class="grid grid-cols-3 gap-1 w-full">
+                <div class="relative group">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-500 pointer-events-none select-none"
+                  >
+                    X
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    x-model.number="config.entities[selectedEntityIdx].position[0]"
+                    @input="updateTransformFromUI"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <div class="relative group">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-green-500 pointer-events-none select-none"
+                  >
+                    Y
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    x-model.number="config.entities[selectedEntityIdx].position[1]"
+                    @input="updateTransformFromUI"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <div class="relative group">
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-blue-500 pointer-events-none select-none"
+                  >
+                    Z
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    x-model.number="config.entities[selectedEntityIdx].position[2]"
+                    @input="updateTransformFromUI"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Rotation -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Rotation</label
+              >
+              <div class="grid grid-cols-3 gap-1 w-full">
+                <!-- X -->
+                <div class="relative group" x-data>
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-500 pointer-events-none select-none"
+                  >
+                    X
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    :value="config.entities[selectedEntityIdx].rotation ? config.entities[selectedEntityIdx].rotation[0] : 0"
+                    @input="if(!config.entities[selectedEntityIdx].rotation) config.entities[selectedEntityIdx].rotation = [0,0,0]; config.entities[selectedEntityIdx].rotation[0] = parseFloat($event.target.value); updateTransformFromUI()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <!-- Y -->
+                <div class="relative group" x-data>
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-green-500 pointer-events-none select-none"
+                  >
+                    Y
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    :value="config.entities[selectedEntityIdx].rotation ? config.entities[selectedEntityIdx].rotation[1] : 0"
+                    @input="if(!config.entities[selectedEntityIdx].rotation) config.entities[selectedEntityIdx].rotation = [0,0,0]; config.entities[selectedEntityIdx].rotation[1] = parseFloat($event.target.value); updateTransformFromUI()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+                <!-- Z -->
+                <div class="relative group" x-data>
+                  <div
+                    class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-blue-500 pointer-events-none select-none"
+                  >
+                    Z
+                  </div>
+                  <input
+                    type="number"
+                    step="0.1"
+                    :value="config.entities[selectedEntityIdx].rotation ? config.entities[selectedEntityIdx].rotation[2] : 0"
+                    @input="if(!config.entities[selectedEntityIdx].rotation) config.entities[selectedEntityIdx].rotation = [0,0,0]; config.entities[selectedEntityIdx].rotation[2] = parseFloat($event.target.value); updateTransformFromUI()"
+                    class="blender-input w-full pl-3 text-center"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Scale (uniform for NPCs, per-axis for props) -->
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Scale</label
+              >
+              <!-- Uniform scale for NPCs -->
+              <template
+                x-if="config.entities[selectedEntityIdx].type !== 'prop'"
+              >
+                <div class="w-full">
+                  <input
+                    type="number"
+                    step="0.1"
+                    class="blender-input w-full text-center"
+                    :value="getEntityScale(config.entities[selectedEntityIdx])"
+                    @input="setEntityScale(config.entities[selectedEntityIdx], parseFloat($event.target.value))"
+                  />
+                </div>
+              </template>
+              <!-- Per-axis scale for props -->
+              <template
+                x-if="config.entities[selectedEntityIdx].type === 'prop'"
+              >
+                <div class="grid grid-cols-3 gap-1 w-full">
+                  <div class="relative group">
+                    <div
+                      class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-red-500 pointer-events-none select-none"
+                    >
+                      X
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      :value="config.entities[selectedEntityIdx].scaling ? config.entities[selectedEntityIdx].scaling[0] : 1"
+                      @input="if(!config.entities[selectedEntityIdx].scaling) config.entities[selectedEntityIdx].scaling = [1,1,1]; config.entities[selectedEntityIdx].scaling[0] = parseFloat($event.target.value); updateTransformFromUI()"
+                      class="blender-input w-full pl-3 text-center"
+                    />
+                  </div>
+                  <div class="relative group">
+                    <div
+                      class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-green-500 pointer-events-none select-none"
+                    >
+                      Y
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      :value="config.entities[selectedEntityIdx].scaling ? config.entities[selectedEntityIdx].scaling[1] : 1"
+                      @input="if(!config.entities[selectedEntityIdx].scaling) config.entities[selectedEntityIdx].scaling = [1,1,1]; config.entities[selectedEntityIdx].scaling[1] = parseFloat($event.target.value); updateTransformFromUI()"
+                      class="blender-input w-full pl-3 text-center"
+                    />
+                  </div>
+                  <div class="relative group">
+                    <div
+                      class="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] font-bold text-blue-500 pointer-events-none select-none"
+                    >
+                      Z
+                    </div>
+                    <input
+                      type="number"
+                      step="0.1"
+                      :value="config.entities[selectedEntityIdx].scaling ? config.entities[selectedEntityIdx].scaling[2] : 1"
+                      @input="if(!config.entities[selectedEntityIdx].scaling) config.entities[selectedEntityIdx].scaling = [1,1,1]; config.entities[selectedEntityIdx].scaling[2] = parseFloat($event.target.value); updateTransformFromUI()"
+                      class="blender-input w-full pl-3 text-center"
+                    />
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <div class="prop-group mt-1">
+          <div class="prop-group-header">LOGIC & DATA</div>
+          <div class="p-2 space-y-1">
+            <div class="flex items-center gap-2">
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Type</label
+              >
+              <select
+                x-model="config.entities[selectedEntityIdx].type"
+                @change="forceUpdateEntity(selectedEntityIdx)"
+                class="blender-input w-full"
+              >
+                <option value="npc">NPC</option>
+                <option value="portal">Portal</option>
+                <option value="prop">Prop</option>
+              </select>
+            </div>
+
+            <!-- NPC Model -->
+            <div
+              x-show="config.entities[selectedEntityIdx].type === 'npc'"
+              class="flex gap-2 items-center"
+            >
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Model</label
+              >
+              <div class="flex-1 flex gap-1">
+                <input
+                  type="text"
+                  x-model="config.entities[selectedEntityIdx].entity"
+                  class="blender-input w-full truncate"
+                />
+                <button
+                  @click="openAssetBrowser(selectedEntityIdx, 'entity')"
+                  class="px-2 bg-[var(--bg-input)] hover:bg-[var(--bg-input-hover)] border border-[var(--border-light)] rounded select-none text-[10px]"
+                  >📂</button
+                >
+              </div>
+            </div>
+
+            <!-- Prop Asset -->
+            <div
+              x-show="config.entities[selectedEntityIdx].type === 'prop'"
+              class="flex gap-2 items-center"
+            >
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Asset</label
+              >
+              <div class="flex-1 flex gap-1">
+                <input
+                  type="text"
+                  x-model="config.entities[selectedEntityIdx].asset"
+                  class="blender-input w-full truncate"
+                />
+                <button
+                  @click="openAssetBrowser(selectedEntityIdx, 'asset')"
+                  class="px-2 bg-[var(--bg-input)] hover:bg-[var(--bg-input-hover)] border border-[var(--border-light)] rounded select-none text-[10px]"
+                  >📂</button
+                >
+              </div>
+            </div>
+
+            <!-- Portal Target -->
+            <div
+              x-show="config.entities[selectedEntityIdx].type === 'portal'"
+              class="flex gap-2 items-center"
+            >
+              <label
+                class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                >Target</label
+              >
+              <input
+                type="text"
+                x-model="config.entities[selectedEntityIdx].targetLevel"
+                class="blender-input flex-1"
+              />
+            </div>
+
+            <!-- NPC Animations -->
+            <div
+              x-show="config.entities[selectedEntityIdx].type === 'npc'"
+              class="pt-2 mt-1 border-t border-[var(--border-light)]"
+            >
+              <div
+                class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider mb-1 px-2"
+              >
+                Animations
+              </div>
+              <div class="space-y-1">
+                <!-- Idle Animation -->
+                <div class="flex items-center gap-2">
+                  <label
+                    class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                    >Idle</label
+                  >
+                  <div class="flex-1 flex gap-1">
+                    <select
+                      x-model="config.entities[selectedEntityIdx].animations.idle"
+                      class="blender-input w-full text-[10px]"
+                    >
+                      <option value="">-- Select --</option>
+                      <template x-for="anim in currentEntityAnims" :key="anim">
+                        <option :value="anim" x-text="anim"></option>
+                      </template>
+                    </select>
+                    <button
+                      @click="config.entities[selectedEntityIdx].animations.idle = '';"
+                      class="px-1.5 text-[var(--text-muted)] hover:text-red-400 transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
+                      title="Clear">×</button
+                    >
+                    <button
+                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx].animations?.idle)"
+                      class="px-1.5 text-[var(--accent-primary)] hover:text-white transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
+                      title="Play Idle">▶</button
+                    >
+                  </div>
+                </div>
+                <!-- Interact Animation -->
+                <div class="flex items-center gap-2">
+                  <label
+                    class="text-[10px] text-[var(--text-muted)] w-14 text-right shrink-0"
+                    >Interact</label
+                  >
+                  <div class="flex-1 flex gap-1">
+                    <select
+                      x-model="config.entities[selectedEntityIdx].animations.interact"
+                      class="blender-input w-full text-[10px]"
+                    >
+                      <option value="">-- Select --</option>
+                      <template x-for="anim in currentEntityAnims" :key="anim">
+                        <option :value="anim" x-text="anim"></option>
+                      </template>
+                    </select>
+                    <button
+                      @click="config.entities[selectedEntityIdx].animations.interact = '';"
+                      class="px-1.5 text-[var(--text-muted)] hover:text-red-400 transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
+                      title="Clear">×</button
+                    >
+                    <button
+                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx].animations?.interact)"
+                      class="px-1.5 text-[var(--accent-primary)] hover:text-white transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
+                      title="Play Interact">▶</button
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <template
+            x-if="['npc', 'prop'].includes(config.entities[selectedEntityIdx].type)"
+          >
+            <div
+              class="space-y-2 pt-2 border-t border-[var(--border-light)] px-2"
+            >
+              <!-- Requirements -->
+              <div class="mt-2">
+                <div class="flex justify-between items-center mb-1 px-1">
+                  <span
+                    class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider"
+                    >Requirements</span
+                  >
+                  <button
+                    @click="addRequirement(selectedEntityIdx)"
+                    class="text-[10px] hover:text-white text-[var(--text-muted)] px-1"
+                    title="Add Requirement">+</button
+                  >
+                </div>
+                <div
+                  class="space-y-1 bg-[var(--bg-input)] rounded p-1 border border-[var(--border-dark)]"
+                >
+                  <template
+                    x-for="(req, rIdx) in config.entities[selectedEntityIdx].requirements || []"
+                    :key="rIdx"
+                  >
+                    <div class="flex gap-1 items-center">
+                      <select
+                        x-model="req.type"
+                        class="bg-transparent text-[9px] w-14 h-5 border-none outline-none text-[var(--text-main)]"
+                        ><option value="item">Item</option><option value="level"
+                          >Lvl</option
+                        ><option value="energy">Energy</option><option
+                          value="money">Money</option
+                        ></select
+                      >
+                      <div class="w-px h-3 bg-[var(--border-light)]"></div>
+                      <input
+                        x-show="req.type === 'item'"
+                        type="text"
+                        placeholder="Item ID"
+                        x-model="req.itemId"
+                        class="bg-transparent text-[9px] flex-1 min-w-0 h-5 border-none outline-none placeholder-[var(--text-dim)]"
+                      />
+                      <input
+                        type="text"
+                        x-model="req.value"
+                        class="bg-transparent text-[9px] w-8 h-5 text-right font-mono border-none outline-none text-[var(--accent-primary)]"
+                        placeholder="Val"
+                      />
+                      <button
+                        @click="removeRequirement(selectedEntityIdx, rIdx)"
+                        class="text-[var(--text-muted)] hover:text-red-400 px-1 text-xs"
+                        >×</button
+                      >
+                    </div>
+                  </template>
+                  <div
+                    x-show="!config.entities[selectedEntityIdx].requirements?.length"
+                    class="text-center text-[8px] text-[var(--text-dim)] italic py-1"
+                  >
+                    No requirements
+                  </div>
+                </div>
+              </div>
+              <!-- Rewards (Polished) -->
+              <div class="mt-2">
+                <div class="flex justify-between items-center mb-1 px-1">
+                  <span
+                    class="text-[10px] font-bold text-[var(--text-dim)] uppercase tracking-wider"
+                    >Rewards</span
+                  >
+                  <button
+                    @click="addReward(selectedEntityIdx)"
+                    class="text-[10px] hover:text-white text-[var(--text-muted)] px-1"
+                    title="Add Reward">+</button
+                  >
+                </div>
+                <div
+                  class="space-y-1 bg-[var(--bg-input)] rounded p-1 border border-[var(--border-dark)]"
+                >
+                  <template
+                    x-for="(rew, rwIdx) in config.entities[selectedEntityIdx].rewards || []"
+                    :key="rwIdx"
+                  >
+                    <div
+                      class="grid grid-cols-[auto_1fr_auto_auto] gap-1 items-center bg-[var(--bg-panel)] p-1 rounded border border-[var(--border-light)] hover:border-[var(--accent-secondary)] transition-colors group"
+                    >
+                      <!-- Type Select -->
+                      <div class="relative">
+                        <select
+                          x-model="rew.type"
+                          class="appearance-none bg-transparent text-[9px] w-14 font-bold text-[var(--accent-secondary)] outline-none cursor-pointer"
+                        >
+                          <option value="item">Item</option>
+                          <option value="energy">Energy</option>
+                          <option value="money">Money</option>
+                        </select>
+                      </div>
+
+                      <!-- ID Input (for Item) -->
+                      <input
+                        x-show="rew.type === 'item'"
+                        type="text"
+                        placeholder="Item ID"
+                        x-model="rew.itemId"
+                        class="bg-transparent text-[9px] w-full min-w-0 border-none outline-none placeholder-[var(--text-dim)]"
+                      />
+                      <div x-show="rew.type !== 'item'" class="flex-1"></div>
+
+                      <!-- Value Input -->
+                      <input
+                        type="text"
+                        x-model="rew.value"
+                        class="bg-[var(--bg-input)] rounded px-1 w-12 text-[9px] text-right font-mono border border-[var(--border-dark)] outline-none text-[var(--text-main)] focus:border-[var(--accent-primary)]"
+                        placeholder="Amt"
+                      />
+
+                      <!-- Delete -->
+                      <button
+                        @click="removeReward(selectedEntityIdx, rwIdx)"
+                        class="text-[var(--text-muted)] hover:text-red-400 px-1 text-xs opacity-50 group-hover:opacity-100 transition-opacity"
+                        title="Remove Reward">×</button
+                      >
+                    </div>
+                  </template>
+                  <div
+                    x-show="!config.entities[selectedEntityIdx].rewards?.length"
+                    class="text-center text-[8px] text-[var(--text-dim)] italic py-2 border border-dashed border-[var(--border-dark)] rounded"
+                  >
+                    No rewards configured
+                  </div>
+                </div>
+              </div>
+              <!-- Fail Dialogue (when requirements NOT met) -->
+              <div class="mt-2">
+                <div class="flex justify-between items-center mb-1 px-1">
+                  <span
+                    class="text-[10px] font-bold text-red-400 uppercase tracking-wider"
+                    >Fail Dialogue</span
+                  >
+                  <button
+                    @click="addFailDialogue(selectedEntityIdx)"
+                    class="text-[10px] hover:text-white text-[var(--text-muted)] px-1"
+                    title="Add Fail Dialogue">+</button
+                  >
+                </div>
+                <div class="text-[8px] text-[var(--text-dim)] px-1 mb-1 italic">Shown when requirements NOT met</div>
+                <div class="space-y-1">
+                  <template
+                    x-for="(line, dIdx) in config.entities[selectedEntityIdx].failDialogue || []"
+                    :key="dIdx"
+                  >
+                    <div
+                      class="bg-[var(--bg-input)] border border-red-900/50 rounded overflow-hidden relative group"
+                    >
+                      <div
+                        class="flex items-center bg-red-900/20 px-2 py-1 gap-2 border-b border-red-900/30"
+                      >
+                        <input
+                          type="text"
+                          x-model="line.speaker"
+                          placeholder="Speaker"
+                          class="bg-transparent text-red-400 font-bold text-[10px] outline-none flex-1 min-w-0"
+                        />
+                        <input
+                          type="number"
+                          x-model.number="line.duration"
+                          class="bg-transparent text-[var(--text-muted)] text-[9px] outline-none w-10 text-right"
+                          placeholder="ms"
+                          title="Duration (ms)"
+                        />
+                        <button
+                          @click="removeFailDialogue(selectedEntityIdx, dIdx)"
+                          class="text-[var(--text-muted)] hover:text-red-400 text-xs px-1"
+                          >×</button
+                        >
+                      </div>
+                      <textarea
+                        x-model="line.text"
+                        class="w-full bg-[#111] text-[10px] text-[var(--text-main)] outline-none resize-none p-2 block border-none font-sans"
+                        rows="2"
+                        placeholder="Dialogue text..."></textarea>
+                    </div>
+                  </template>
+                  <div
+                    x-show="!config.entities[selectedEntityIdx].failDialogue?.length"
+                    class="text-center text-[8px] text-[var(--text-dim)] italic py-1"
+                  >
+                    No fail dialogue
+                  </div>
+                </div>
+              </div>
+
+              <!-- Success Dialogue (when requirements ARE met) -->
+              <div class="mt-2">
+                <div class="flex justify-between items-center mb-1 px-1">
+                  <span
+                    class="text-[10px] font-bold text-green-400 uppercase tracking-wider"
+                    >Success Dialogue</span
+                  >
+                  <button
+                    @click="addSuccessDialogue(selectedEntityIdx)"
+                    class="text-[10px] hover:text-white text-[var(--text-muted)] px-1"
+                    title="Add Success Dialogue">+</button
+                  >
+                </div>
+                <div class="text-[8px] text-[var(--text-dim)] px-1 mb-1 italic">Shown when requirements met (rewards given)</div>
+                <div class="space-y-1">
+                  <template
+                    x-for="(line, dIdx) in config.entities[selectedEntityIdx].successDialogue || []"
+                    :key="dIdx"
+                  >
+                    <div
+                      class="bg-[var(--bg-input)] border border-green-900/50 rounded overflow-hidden relative group"
+                    >
+                      <div
+                        class="flex items-center bg-green-900/20 px-2 py-1 gap-2 border-b border-green-900/30"
+                      >
+                        <input
+                          type="text"
+                          x-model="line.speaker"
+                          placeholder="Speaker"
+                          class="bg-transparent text-green-400 font-bold text-[10px] outline-none flex-1 min-w-0"
+                        />
+                        <input
+                          type="number"
+                          x-model.number="line.duration"
+                          class="bg-transparent text-[var(--text-muted)] text-[9px] outline-none w-10 text-right"
+                          placeholder="ms"
+                          title="Duration (ms)"
+                        />
+                        <button
+                          @click="removeSuccessDialogue(selectedEntityIdx, dIdx)"
+                          class="text-[var(--text-muted)] hover:text-red-400 text-xs px-1"
+                          >×</button
+                        >
+                      </div>
+                      <textarea
+                        x-model="line.text"
+                        class="w-full bg-[#111] text-[10px] text-[var(--text-main)] outline-none resize-none p-2 block border-none font-sans"
+                        rows="2"
+                        placeholder="Dialogue text..."></textarea>
+                    </div>
+                  </template>
+                  <div
+                    x-show="!config.entities[selectedEntityIdx].successDialogue?.length"
+                    class="text-center text-[8px] text-[var(--text-dim)] italic py-1"
+                  >
+                    No success dialogue
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <template x-if="config.entities[selectedEntityIdx].type === 'prop'">
+          <div class="prop-group mt-1">
+            <div class="prop-group-header flex justify-between">
+              <span>PHYSICS</span>
+              <input
+                type="checkbox"
+                x-model="config.entities[selectedEntityIdx].physics.enabled"
+                @change="if(!$el.checked) delete config.entities[selectedEntityIdx].physics; else config.entities[selectedEntityIdx].physics = { enabled: true, mass: 0, impostor: 'box' }; reloadLevelPromise()"
+                class="accent-[var(--accent-primary)]"
+              />
+            </div>
+
+            <template
+              x-if="config.entities[selectedEntityIdx].physics?.enabled"
+            >
+              <div class="space-y-1 p-2">
+                <div class="flex items-center gap-2">
+                  <label
+                    class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                    >Mass (kg)</label
+                  >
+                  <input
+                    type="number"
+                    x-model.number="config.entities[selectedEntityIdx].physics.mass"
+                    @change="reloadLevelPromise"
+                    class="blender-input w-20"
+                  />
+                </div>
+                <div class="flex items-center gap-2">
+                  <label
+                    class="text-[10px] text-[var(--text-muted)] w-20 text-right shrink-0"
+                    >Collider</label
+                  >
+                  <select
+                    x-model="config.entities[selectedEntityIdx].physics.impostor"
+                    @change="reloadLevelPromise"
+                    class="blender-input w-full"
+                  >
+                    <option value="box">Box</option>
+                    <option value="sphere">Sphere</option>
+                    <option value="mesh">Mesh</option>
+                    <option value="capsule">Capsule</option>
+                  </select>
+                </div>
+              </div>
+            </template>
+            <template
+              x-if="!config.entities[selectedEntityIdx].physics?.enabled"
+            >
+              <div
+                class="text-[var(--text-dim)] text-[10px] italic text-center py-2"
+              >
+                Physics Disabled
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</aside>

@@ -1,0 +1,72 @@
+---
+
+---
+
+<!-- Asset Modal -->
+<div
+  x-data
+  x-show="showAssetModal"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+  style="display: none;"
+  x-transition.opacity.duration.200ms
+  @click.self="showAssetModal = false"
+>
+  <div
+    class="bg-[var(--bg-panel)] border border-[var(--border-dark)] rounded-lg shadow-2xl w-[850px] h-[600px] flex flex-col overflow-hidden animate-scale-in"
+  >
+    <div
+      class="h-10 bg-[var(--bg-header)] border-b border-[var(--border-dark)] flex justify-between items-center px-4 select-none"
+    >
+      <span
+        class="text-sm font-bold text-[var(--text-main)]"
+        x-text="selectingAssetFor?.field === 'music' ? 'Select Music' : 'Asset Browser'"
+        >Asset Browser</span
+      >
+      <button
+        @click="showAssetModal = false"
+        class="text-[var(--text-muted)] hover:text-white px-2 text-xl">×</button
+      >
+    </div>
+
+    <div
+      class="h-12 bg-[var(--bg-panel)] border-b border-[var(--border-light)] flex items-center px-4 gap-4"
+    >
+      <div class="relative flex-1 max-w-sm">
+        <span
+          class="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-dim)] text-[12px]"
+          >🔍</span
+        >
+        <input
+          type="text"
+          placeholder="Filter..."
+          class="w-full bg-[var(--bg-input)] border border-[var(--border-light)] rounded-full text-[12px] text-white pl-9 pr-3 py-1.5 outline-none focus:border-[var(--accent-secondary)] transition-colors placeholder-[var(--text-dim)]"
+          x-model="searchQuery"
+        />
+      </div>
+    </div>
+
+    <div class="flex-1 p-4 overflow-y-auto bg-[#111]">
+      <div class="grid grid-cols-6 gap-3">
+        <template x-for="asset in filteredAssets">
+          <div
+            @click="onAssetSelected(asset)"
+            class="flex flex-col group cursor-pointer p-2 rounded hover:bg-[var(--bg-input-hover)] transition-colors border border-transparent hover:border-[var(--border-light)]"
+          >
+            <div
+              class="aspect-square bg-[var(--bg-input)] rounded flex items-center justify-center mb-2 overflow-hidden relative"
+            >
+              <span
+                class="text-3xl opacity-30 group-hover:opacity-100 transition-all transform group-hover:scale-110"
+                x-text="selectingAssetFor?.field === 'music' ? '🎵' : '📦'"
+                >📦</span
+              >
+            </div>
+            <span
+              class="text-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-main)] truncate text-center"
+              x-text="getAssetName(asset)"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
