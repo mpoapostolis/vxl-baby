@@ -1,9 +1,9 @@
 /**
- * LevelStore - Dynamic level storage and management
- * Supports: localStorage, JSON import/export, CRUD operations
+ * LevelStore - Dynamic level storage from localStorage
+ * All levels are user-created, no built-in levels
  */
 
-import { LEVELS, DEFAULT_CONFIG, type LevelConfig } from "../config/levels";
+import { DEFAULT_CONFIG, type LevelConfig } from "../config/levels";
 
 const STORAGE_KEY = "vxl_levels";
 const STORAGE_META_KEY = "vxl_levels_meta";
@@ -22,12 +22,40 @@ export class LevelStore {
   private meta = new Map<string, LevelMeta>();
 
   private constructor() {
-    this.loadBuiltInLevels();
     this.loadFromStorage();
+    this.ensureStarterLevel();
   }
 
   static getInstance(): LevelStore {
     return (LevelStore.instance ??= new LevelStore());
+  }
+
+  private ensureStarterLevel(): void {
+    // If no levels exist, create a starter level
+    if (this.levels.size === 0) {
+      const starterLevel: LevelConfig = {
+        ...DEFAULT_CONFIG,
+        id: "starter",
+        name: "My First Level",
+        environment: {
+          asset: "/assets/room-large.glb",
+          scale: 1,
+        },
+        entities: [],
+      };
+
+      const now = Date.now();
+      this.levels.set(starterLevel.id, starterLevel);
+      this.meta.set(starterLevel.id, {
+        id: starterLevel.id,
+        name: starterLevel.name,
+        createdAt: now,
+        updatedAt: now,
+        isBuiltIn: false,
+      });
+
+      this.saveToStorage();
+    }
   }
 
   // ==================== CRUD ====================
@@ -44,6 +72,12 @@ export class LevelStore {
     return Array.from(this.meta.values()).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  getFirst(): LevelConfig | undefined {
+    const metas = this.getAllMeta();
+    if (metas.length === 0) return undefined;
+    return this.levels.get(metas[0].id);
+  }
+
   exists(id: string): boolean {
     return this.levels.has(id);
   }
@@ -53,29 +87,14 @@ export class LevelStore {
     const now = Date.now();
 
     const config: LevelConfig = {
+      ...DEFAULT_CONFIG,
       id,
       name,
-      ambientIntensity: 0.5,
-      flashlightIntensity: 3,
-      clearColor: [0.05, 0.05, 0.1, 1],
-      fogEnabled: false,
-      fogColor: [0.1, 0.1, 0.1],
-      fogDensity: 0.02,
-      cameraRadius: 10,
-      cameraBeta: Math.PI / 3,
-      pipeline: {
-        grain: 20,
-        vignette: 5,
-        vignetteWeight: 5,
-        chromaticAberration: 1,
-        contrast: 1.2,
-        exposure: 1.0,
+      environment: {
+        asset: "/assets/room-large.glb",
+        scale: 1,
       },
-      environment: { asset: "/assets/room-large.glb", scale: 1 },
       entities: [],
-      dialogues: [],
-      triggers: [],
-      effects: [],
     };
 
     this.levels.set(id, config);
@@ -94,12 +113,6 @@ export class LevelStore {
   save(config: LevelConfig): void {
     const existing = this.meta.get(config.id);
 
-    if (existing?.isBuiltIn) {
-      // Clone built-in level as custom
-      const newId = config.id + "_custom";
-      config = { ...config, id: newId };
-    }
-
     this.levels.set(config.id, config);
     this.meta.set(config.id, {
       id: config.id,
@@ -113,8 +126,8 @@ export class LevelStore {
   }
 
   delete(id: string): boolean {
-    const meta = this.meta.get(id);
-    if (!meta || meta.isBuiltIn) return false;
+    // Don't delete if it's the only level
+    if (this.levels.size <= 1) return false;
 
     this.levels.delete(id);
     this.meta.delete(id);
@@ -158,8 +171,7 @@ export class LevelStore {
   }
 
   exportAllToJson(): string {
-    const custom = this.getAll().filter((l) => !this.meta.get(l.id)?.isBuiltIn);
-    return JSON.stringify(custom, null, 2);
+    return JSON.stringify(this.getAll(), null, 2);
   }
 
   importFromJson(json: string): LevelConfig | undefined {
@@ -202,19 +214,6 @@ export class LevelStore {
 
   // ==================== STORAGE ====================
 
-  private loadBuiltInLevels(): void {
-    for (const [id, config] of Object.entries(LEVELS)) {
-      this.levels.set(id, config);
-      this.meta.set(id, {
-        id,
-        name: config.name,
-        createdAt: 0,
-        updatedAt: 0,
-        isBuiltIn: true,
-      });
-    }
-  }
-
   private loadFromStorage(): void {
     if (typeof localStorage === "undefined") return;
 
@@ -232,9 +231,7 @@ export class LevelStore {
       if (metaData) {
         const metas = JSON.parse(metaData) as LevelMeta[];
         for (const m of metas) {
-          if (!m.isBuiltIn) {
-            this.meta.set(m.id, m);
-          }
+          this.meta.set(m.id, m);
         }
       }
     } catch (e) {
@@ -246,28 +243,21 @@ export class LevelStore {
     if (typeof localStorage === "undefined") return;
 
     try {
-      // Only save custom levels
-      const customLevels = this.getAll().filter((l) => !this.meta.get(l.id)?.isBuiltIn);
-      const customMeta = this.getAllMeta().filter((m) => !m.isBuiltIn);
+      const allLevels = this.getAll();
+      const allMeta = this.getAllMeta();
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(customLevels));
-      localStorage.setItem(STORAGE_META_KEY, JSON.stringify(customMeta));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(allLevels));
+      localStorage.setItem(STORAGE_META_KEY, JSON.stringify(allMeta));
     } catch (e) {
       console.error("[LevelStore] Failed to save to storage:", e);
     }
   }
 
-  clearCustomLevels(): void {
-    const customIds = this.getAllMeta()
-      .filter((m) => !m.isBuiltIn)
-      .map((m) => m.id);
-
-    for (const id of customIds) {
-      this.levels.delete(id);
-      this.meta.delete(id);
-    }
-
+  clearAllLevels(): void {
+    this.levels.clear();
+    this.meta.clear();
     this.saveToStorage();
+    this.ensureStarterLevel();
   }
 
   // ==================== HELPERS ====================

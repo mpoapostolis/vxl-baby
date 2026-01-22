@@ -8,20 +8,22 @@ async function initGame(): Promise<void> {
   try {
     const { Engine } = await import("./core/Engine");
     const { LevelManager } = await import("./managers/LevelManager");
+    const { LevelStore } = await import("./managers/LevelStore");
     const { Level } = await import("./levels/Level");
-    const { LEVELS } = await import("./config/levels");
 
     const engine = Engine.getInstance(canvas as HTMLCanvasElement);
     await engine.init();
 
     const levelManager = LevelManager.getInstance();
+    const store = LevelStore.getInstance();
 
-    // Register levels from config
-    for (const [id, config] of Object.entries(LEVELS)) {
-      levelManager.register(id, () => new Level(config));
+    // Load the first available level
+    const firstLevel = store.getFirst();
+    if (!firstLevel) {
+      console.error("No levels found!");
+      return;
     }
-
-    await levelManager.load("level1");
+    await levelManager.load(firstLevel.id);
 
     engine.runRenderLoop(() => {
       levelManager.update();

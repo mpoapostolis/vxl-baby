@@ -40,10 +40,9 @@ export class LevelManager {
   // ==================== LEVEL LOADING ====================
 
   async load(id: string): Promise<void> {
-    // Cleanup previous level
     this.cleanup();
 
-    // Try custom factory first (editor mode, etc.)
+    // Try custom factory first (editor mode)
     const factory = this.customFactories.get(id);
     if (factory) {
       this.currentLevel = factory();
@@ -53,9 +52,11 @@ export class LevelManager {
       return;
     }
 
-    // Load from store
+    // Load from store (always fresh)
     const config = this.store.get(id);
-    if (!config) throw new Error(`Level "${id}" not found`);
+    if (!config) {
+      throw new Error(`Level "${id}" not found`);
+    }
 
     this.currentLevel = new Level(config);
     this.currentLevelId = id;

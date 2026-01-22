@@ -224,8 +224,54 @@ export class Level extends BaseLevel {
   }
 
   protected override onUpdate(): void {
+    if (!this.isEditorMode) {
+      this.checkNPCProximity();
+    }
     this.processTriggers();
     this.processEffects();
+  }
+
+  private checkNPCProximity(): void {
+    if (!this.player) return;
+
+    const dialogueManager = DialogueManager.getInstance();
+    if (dialogueManager.isActive()) return; // Don't interrupt active dialogue
+
+    const INTERACTION_RADIUS = 3; // Distance to trigger dialogue
+
+    for (let i = 0; i < this.levelConfig.entities.length; i++) {
+      const spawn = this.levelConfig.entities[i];
+      if (spawn.type !== "npc") continue;
+      if (this.npcDialogueTriggered.has(i)) continue; // Already triggered
+
+      const npc = this.npcs.get(i);
+      if (!npc) continue;
+
+      const dist = Vector3.Distance(this.player.position, npc.position);
+      if (dist < INTERACTION_RADIUS) {
+        const npcSpawn = spawn as NPCSpawn;
+
+        // Mark as triggered so it only plays once
+        this.npcDialogueTriggered.add(i);
+
+        // Execute quest graph if available
+        if (npcSpawn.questGraph) {
+          this.executeQuestGraph(npcSpawn.questGraph, npcSpawn.name || "NPC");
+          return;
+        }
+
+        // Fallback to successDialogue
+        if (npcSpawn.successDialogue && npcSpawn.successDialogue.length > 0) {
+          const dialogueId = `npc_${i}_success`;
+          dialogueManager.register({
+            id: dialogueId,
+            lines: npcSpawn.successDialogue,
+          });
+          dialogueManager.play(dialogueId);
+          return;
+        }
+      }
+    }
   }
 
   private processTriggers(): void {
@@ -308,7 +354,92 @@ export class Level extends BaseLevel {
     }
   }
 
-  public start(): void {}
+  // Track which NPCs have already triggered their dialogue (one-time)
+  private npcDialogueTriggered = new Set<number>();
+
+  public start(): void {
+    // Nothing needed here - proximity check happens in onUpdate
+  }
+
+
+  private executeQuestGraph(graphData: Record<string, any>, speakerName: string): void {
+    const dialogueManager = DialogueManager.getInstance();
+
+    const nodes = graphData.nodes || [];
+    const links = graphData.links || [];
+
+    // Build link map: link_id -> { from, to }
+    const linkMap = new Map<number, { from: number; to: number }>();
+    for (const link of links) {
+      if (Array.isArray(link) && link.length >= 4) {
+        linkMap.set(link[0], { from: link[1], to: link[3] });
+      }
+    }
+
+    // Build node map and find START node
+    const nodeMap = new Map<number, any>();
+    let startNode: any = null;
+    for (const node of nodes) {
+      nodeMap.set(node.id, node);
+      if (node.type === "Dialog/Start") {
+        startNode = node;
+      }
+    }
+
+    if (!startNode) return;
+
+    // Follow flow from START, collecting SAY texts
+    const dialogueLines: { speaker: string; text: string; duration: number }[] = [];
+    let currentNode = startNode;
+    const visited = new Set<number>();
+
+    while (currentNode && !visited.has(currentNode.id)) {
+      visited.add(currentNode.id);
+
+      // SAY node - collect text
+      if (currentNode.type === "Dialog/Say") {
+        // LiteGraph stores widget values in widgets_values array (index 0 is the text)
+        let text = "";
+        if (currentNode.widgets_values && currentNode.widgets_values.length > 0) {
+          text = String(currentNode.widgets_values[0]);
+        } else if (currentNode.properties?.text) {
+          text = String(currentNode.properties.text);
+        }
+
+        if (text) {
+          dialogueLines.push({
+            speaker: speakerName,
+            text: text,
+            duration: Math.max(2500, text.length * 100),
+          });
+        }
+      }
+
+      // Find next node via output links
+      const outputs = currentNode.outputs || [];
+      let nextNodeId: number | null = null;
+
+      for (const output of outputs) {
+        if (output.links && output.links.length > 0) {
+          const linkId = output.links[0];
+          const link = linkMap.get(linkId);
+          if (link) {
+            nextNodeId = link.to;
+            break;
+          }
+        }
+      }
+
+      currentNode = nextNodeId !== null ? nodeMap.get(nextNodeId) : null;
+    }
+
+    // Play collected dialogue
+    if (dialogueLines.length > 0) {
+      const dialogueId = `quest_${Date.now()}`;
+      dialogueManager.register({ id: dialogueId, lines: dialogueLines });
+      dialogueManager.play(dialogueId);
+    }
+  }
 
   // ==================== EDITOR API ====================
 

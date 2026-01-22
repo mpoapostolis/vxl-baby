@@ -1,9 +1,9 @@
-import { WebGPUEngine, Engine as BabylonEngine } from "@babylonjs/core";
+import { WebGPUEngine, Engine as BabylonEngine, type AbstractEngine } from "@babylonjs/core";
 import "@babylonjs/loaders";
 
 export class Engine {
   private static instance: Engine | null = null;
-  public engine!: BabylonEngine;
+  public engine!: AbstractEngine;
   public canvas: HTMLCanvasElement;
   private disposed = false;
   private isWebGPU = false;

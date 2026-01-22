@@ -131,14 +131,27 @@ function camelToTitle(str: string): string {
   return str.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase());
 }
 
+function createFallbackConfig(): LevelConfig {
+  return {
+    id: "new_level",
+    name: "New Level",
+    ambientIntensity: 0.5,
+    clearColor: [0.05, 0.05, 0.1, 1],
+    fogEnabled: false,
+    environment: { asset: "/assets/room-large.glb", scale: 1 },
+    entities: [],
+  };
+}
+
 // ==================== MAIN LOGIC ====================
 
 export function editorLogic() {
   const store = LevelStore.getInstance();
+  const firstLevel = store.getFirst() ?? createFallbackConfig();
 
   const state: EditorState = {
-    currentLevelId: "level1",
-    config: deepClone(store.get("level1")!),
+    currentLevelId: firstLevel.id,
+    config: deepClone(firstLevel),
     selectedEntityIdx: -1,
     transformMode: "position",
     currentEntityAnims: [],
@@ -495,8 +508,11 @@ export function editorLogic() {
 
         case "asset":
           if (index !== null && this.config.entities[index]) {
-            this.config.entities[index].asset = assetPath;
-            this.reloadLevelPromise();
+            const ent = this.config.entities[index];
+            if (isPropSpawn(ent) || isNPCSpawn(ent)) {
+              ent.asset = assetPath;
+              this.reloadLevelPromise();
+            }
           }
           break;
       }
@@ -507,6 +523,8 @@ export function editorLogic() {
 
     async swapEntityModel(index: number, assetPath: string) {
       const entity = this.config.entities[index];
+      if (!isNPCSpawn(entity)) return;
+
       entity.asset = assetPath;
       delete entity.entity;
       entity.animations = { idle: "", interact: "" };
@@ -532,7 +550,7 @@ export function editorLogic() {
       this.currentEntityAnims = anims;
 
       const entity = this.config.entities[idx];
-      if (entity && !entity.animations) {
+      if (entity && isNPCSpawn(entity) && !entity.animations) {
         entity.animations = { idle: "", interact: "" };
       }
     },
@@ -573,7 +591,7 @@ export function editorLogic() {
         parseFloat(pos.z.toFixed(2)),
       ];
 
-      if (rot) {
+      if (rot && (isNPCSpawn(entity) || isPropSpawn(entity))) {
         entity.rotation = [
           parseFloat(rot.x.toFixed(2)),
           parseFloat(rot.y.toFixed(2)),
@@ -582,13 +600,13 @@ export function editorLogic() {
       }
 
       if (scale) {
-        if (entity.type === "prop") {
+        if (isPropSpawn(entity)) {
           entity.scaling = [
             parseFloat(scale.x.toFixed(2)),
             parseFloat(scale.y.toFixed(2)),
             parseFloat(scale.z.toFixed(2)),
           ];
-        } else {
+        } else if (isNPCSpawn(entity)) {
           entity.scale = parseFloat(scale.x.toFixed(2));
         }
       }
@@ -613,10 +631,11 @@ export function editorLogic() {
       if (!(lvl instanceof Level)) return;
 
       const scale = this.getEntityScaleArray(entity);
+      const rotation = (isNPCSpawn(entity) || isPropSpawn(entity)) ? (entity.rotation || [0, 0, 0]) : [0, 0, 0];
       lvl.updateEntityTransform(
         this.selectedEntityIdx,
         entity.position,
-        entity.rotation || [0, 0, 0],
+        rotation,
         scale,
       );
     },
@@ -656,26 +675,35 @@ export function editorLogic() {
 
     addRequirement(idx: number) {
       const entity = this.config.entities[idx];
+      if (!isNPCSpawn(entity)) return;
       if (!entity.requirements) entity.requirements = [];
       entity.requirements.push({ type: "item", value: 1 });
     },
 
     removeRequirement(entIdx: number, reqIdx: number) {
-      this.config.entities[entIdx].requirements?.splice(reqIdx, 1);
+      const entity = this.config.entities[entIdx];
+      if (isNPCSpawn(entity)) {
+        entity.requirements?.splice(reqIdx, 1);
+      }
     },
 
     addReward(idx: number) {
       const entity = this.config.entities[idx];
+      if (!isNPCSpawn(entity)) return;
       if (!entity.rewards) entity.rewards = [];
       entity.rewards.push({ type: "money", value: 100 });
     },
 
     removeReward(entIdx: number, rewardIdx: number) {
-      this.config.entities[entIdx].rewards?.splice(rewardIdx, 1);
+      const entity = this.config.entities[entIdx];
+      if (isNPCSpawn(entity)) {
+        entity.rewards?.splice(rewardIdx, 1);
+      }
     },
 
     addFailDialogue(idx: number) {
       const entity = this.config.entities[idx];
+      if (!isNPCSpawn(entity)) return;
       if (!entity.failDialogue) entity.failDialogue = [];
       entity.failDialogue.push({
         speaker: "NPC",
@@ -685,11 +713,15 @@ export function editorLogic() {
     },
 
     removeFailDialogue(entIdx: number, diagIdx: number) {
-      this.config.entities[entIdx].failDialogue?.splice(diagIdx, 1);
+      const entity = this.config.entities[entIdx];
+      if (isNPCSpawn(entity)) {
+        entity.failDialogue?.splice(diagIdx, 1);
+      }
     },
 
     addSuccessDialogue(idx: number) {
       const entity = this.config.entities[idx];
+      if (!isNPCSpawn(entity)) return;
       if (!entity.successDialogue) entity.successDialogue = [];
       entity.successDialogue.push({
         speaker: "NPC",
@@ -699,7 +731,10 @@ export function editorLogic() {
     },
 
     removeSuccessDialogue(entIdx: number, diagIdx: number) {
-      this.config.entities[entIdx].successDialogue?.splice(diagIdx, 1);
+      const entity = this.config.entities[entIdx];
+      if (isNPCSpawn(entity)) {
+        entity.successDialogue?.splice(diagIdx, 1);
+      }
     },
 
     // ==================== QUEST EDITOR ====================
@@ -719,8 +754,9 @@ export function editorLogic() {
       const entity = this.config.entities[this.selectedEntityIdx];
       if (entity && isNPCSpawn(entity)) {
         entity.questGraph = data;
-        this.markDirty();
         console.log("Saved Quest Graph for NPC:", entity.name, data);
+        // Save immediately (don't wait for auto-save)
+        this.saveCurrentLevel();
       }
     },
 

@@ -568,11 +568,19 @@
                 class="text-[10px] text-(--text-muted) w-14 text-right shrink-0"
                 >Target</label
               >
-              <input
-                type="text"
+              <select
                 x-model="config.entities[selectedEntityIdx].targetLevel"
+                @change="markDirty()"
                 class="blender-input flex-1"
-              />
+              >
+                <option value="">-- Select Level --</option>
+                <template x-for="level in levelList" :key="level.id">
+                  <option
+                    :value="level.id"
+                    x-text="level.name"
+                  ></option>
+                </template>
+              </select>
             </div>
 
             <!-- NPC Animations -->
@@ -678,8 +686,8 @@
               <span>PHYSICS</span>
               <input
                 type="checkbox"
-                x-model="config.entities[selectedEntityIdx].physics.enabled"
-                @change="if(!$el.checked) delete config.entities[selectedEntityIdx].physics; else config.entities[selectedEntityIdx].physics = { enabled: true, mass: 0, impostor: 'box' }; reloadLevelPromise()"
+                :checked="config.entities[selectedEntityIdx].physics?.enabled ?? false"
+                @change="if(!$el.checked) { delete config.entities[selectedEntityIdx].physics; } else { config.entities[selectedEntityIdx].physics = { enabled: true, mass: 0, impostor: 'box' }; } reloadLevelPromise()"
                 class="accent-[var(--accent-primary)]"
               />
             </div>
