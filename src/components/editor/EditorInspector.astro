@@ -24,7 +24,10 @@
               <input
                 type="text"
                 x-model="config.id"
+                @input="markDirty()"
                 class="blender-input font-mono text-[11px] w-full"
+                :disabled="isBuiltInLevel(currentLevelId)"
+                :class="isBuiltInLevel(currentLevelId) ? 'opacity-50' : ''"
               />
             </div>
 
@@ -36,6 +39,7 @@
               <input
                 type="text"
                 x-model="config.name"
+                @input="markDirty()"
                 class="blender-input w-full"
               />
             </div>
@@ -259,8 +263,8 @@
                   x-text="camelToTitle(setting)"></label>
                 <input
                   type="number"
-                  x-model.number="config.pipeline[setting]"
-                  @input="hotUpdate"
+                  :value="config.pipeline?.[setting] ?? 0"
+                  @input="if(!config.pipeline) config.pipeline = {grain:0,vignette:0,vignetteWeight:0,chromaticAberration:0,contrast:1,exposure:1}; config.pipeline[setting] = parseFloat($event.target.value); hotUpdate()"
                   class="blender-input w-full text-center"
                   :step="getPipelineRange(setting).step"
                 />
@@ -590,7 +594,8 @@
                   >
                   <div class="flex-1 flex gap-1">
                     <select
-                      x-model="config.entities[selectedEntityIdx].animations.idle"
+                      :value="config.entities[selectedEntityIdx]?.animations?.idle || ''"
+                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.idle = $event.target.value"
                       class="blender-input w-full text-[10px]"
                     >
                       <option value="">-- Select --</option>
@@ -599,12 +604,12 @@
                       </template>
                     </select>
                     <button
-                      @click="config.entities[selectedEntityIdx].animations.idle = '';"
+                      @click="if(config.entities[selectedEntityIdx]?.animations) config.entities[selectedEntityIdx].animations.idle = '';"
                       class="px-1.5 text-(--text-muted) hover:text-red-400 transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
                       title="Clear">×</button
                     >
                     <button
-                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx].animations?.idle)"
+                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx]?.animations?.idle)"
                       class="px-1.5 text-[var(--accent-primary)] hover:text-white transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
                       title="Play Idle">▶</button
                     >
@@ -618,7 +623,8 @@
                   >
                   <div class="flex-1 flex gap-1">
                     <select
-                      x-model="config.entities[selectedEntityIdx].animations.interact"
+                      :value="config.entities[selectedEntityIdx]?.animations?.interact || ''"
+                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.interact = $event.target.value"
                       class="blender-input w-full text-[10px]"
                     >
                       <option value="">-- Select --</option>
@@ -627,12 +633,12 @@
                       </template>
                     </select>
                     <button
-                      @click="config.entities[selectedEntityIdx].animations.interact = '';"
+                      @click="if(config.entities[selectedEntityIdx]?.animations) config.entities[selectedEntityIdx].animations.interact = '';"
                       class="px-1.5 text-(--text-muted) hover:text-red-400 transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
                       title="Clear">×</button
                     >
                     <button
-                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx].animations?.interact)"
+                      @click="previewAnimation(selectedEntityIdx, config.entities[selectedEntityIdx]?.animations?.interact)"
                       class="px-1.5 text-[var(--accent-primary)] hover:text-white transition-colors text-[10px] bg-[var(--bg-input)] border border-[var(--border-light)] rounded"
                       title="Play Interact">▶</button
                     >

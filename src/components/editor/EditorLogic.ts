@@ -1,9 +1,23 @@
 import { Engine } from "../../core/Engine";
 import { LevelManager } from "../../managers/LevelManager";
+import { LevelStore, type LevelMeta } from "../../managers/LevelStore";
 import { Level } from "../../levels/Level";
-import { LEVELS, DEFAULT_CONFIG, type LevelConfig, type EntitySpawn } from "../../config/levels";
+import { DEFAULT_CONFIG, type LevelConfig, type EntitySpawn, type NPCSpawn, type PropSpawn, type PortalSpawn } from "../../config/levels";
 import { ENTITIES } from "../../config/entities";
 import type { Vector3 } from "@babylonjs/core";
+
+// Type guards for entity discrimination
+function isNPCSpawn(entity: EntitySpawn): entity is NPCSpawn {
+  return entity.type === "npc";
+}
+
+function isPropSpawn(entity: EntitySpawn): entity is PropSpawn {
+  return entity.type === "prop";
+}
+
+function isPortalSpawn(entity: EntitySpawn): entity is PortalSpawn {
+  return entity.type === "portal";
+}
 
 // ==================== TYPES ====================
 
@@ -23,10 +37,16 @@ interface EditorState {
   currentEntityAnims: string[];
   copyStatus: string;
   showAssetModal: boolean;
+  showLevelModal: boolean;
+  showNewLevelModal: boolean;
+  newLevelName: string;
   searchQuery: string;
   outlinerSearch: string;
   selectingAssetFor: AssetSelection | null;
   engine: Engine | null;
+  levelList: LevelMeta[];
+  saveStatus: string;
+  isDirty: boolean;
 }
 
 // ==================== CONSTANTS ====================
@@ -102,21 +122,42 @@ function camelToTitle(str: string): string {
 // ==================== MAIN LOGIC ====================
 
 export function editorLogic() {
+  const store = LevelStore.getInstance();
+
   const state: EditorState = {
     currentLevelId: "level1",
-    config: deepClone(LEVELS.level1),
+    config: deepClone(store.get("level1")!),
     selectedEntityIdx: -1,
     transformMode: "position",
     currentEntityAnims: [],
     copyStatus: "Copy JSON",
     showAssetModal: false,
+    showLevelModal: false,
+    showNewLevelModal: false,
+    newLevelName: "",
     searchQuery: "",
     outlinerSearch: "",
     selectingAssetFor: null,
     engine: null,
+    levelList: store.getAllMeta(),
+    saveStatus: "Saved",
+    isDirty: false,
   };
 
   let keyboardHandler: ((e: KeyboardEvent) => void) | null = null;
+  const pendingTimeouts: number[] = [];
+  let autoSaveTimer: number | null = null;
+
+  // Helper to track timeouts for cleanup
+  const safeTimeout = (callback: () => void, delay: number): number => {
+    const id = window.setTimeout(() => {
+      callback();
+      const idx = pendingTimeouts.indexOf(id);
+      if (idx > -1) pendingTimeouts.splice(idx, 1);
+    }, delay);
+    pendingTimeouts.push(id);
+    return id;
+  };
 
   return {
     // Expose state
@@ -199,11 +240,83 @@ export function editorLogic() {
     // ==================== LEVEL MANAGEMENT ====================
 
     loadLevel(id: string) {
+      const config = store.get(id);
+      if (!config) {
+        console.error(`Level "${id}" not found`);
+        return;
+      }
+
       this.currentLevelId = id;
-      this.config = LEVELS[id] ? deepClone(LEVELS[id]) : { ...deepClone(DEFAULT_CONFIG), id } as LevelConfig;
+      this.config = deepClone(config);
       this.selectedEntityIdx = -1;
       this.currentEntityAnims = [];
+      this.isDirty = false;
+      this.saveStatus = "Saved";
       this.reloadLevelPromise();
+    },
+
+    createNewLevel(name: string) {
+      if (!name.trim()) return;
+
+      const config = store.create(name.trim());
+      this.levelList = store.getAllMeta();
+      this.currentLevelId = config.id;
+      this.config = deepClone(config);
+      this.selectedEntityIdx = -1;
+      this.currentEntityAnims = [];
+      this.isDirty = false;
+      this.showNewLevelModal = false;
+      this.newLevelName = "";
+      this.reloadLevelPromise();
+    },
+
+    saveCurrentLevel() {
+      store.save(this.config);
+      this.levelList = store.getAllMeta();
+      this.isDirty = false;
+      this.saveStatus = "Saved";
+      safeTimeout(() => (this.saveStatus = "Saved"), 2000);
+    },
+
+    deleteLevel(id: string) {
+      const meta = this.levelList.find((l) => l.id === id);
+      if (meta?.isBuiltIn) {
+        alert("Cannot delete built-in levels");
+        return;
+      }
+
+      if (!confirm(`Delete "${meta?.name || id}"?`)) return;
+
+      store.delete(id);
+      this.levelList = store.getAllMeta();
+
+      // If we deleted the current level, load another
+      if (this.currentLevelId === id) {
+        const first = this.levelList[0];
+        if (first) this.loadLevel(first.id);
+      }
+    },
+
+    duplicateLevel(id: string) {
+      const copy = store.duplicate(id);
+      if (copy) {
+        this.levelList = store.getAllMeta();
+        this.loadLevel(copy.id);
+      }
+    },
+
+    markDirty() {
+      if (!this.isDirty) {
+        this.isDirty = true;
+        this.saveStatus = "Unsaved*";
+      }
+
+      // Auto-save after 3 seconds of no changes
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = window.setTimeout(() => {
+        this.saveCurrentLevel();
+        autoSaveTimer = null;
+      }, 3000);
     },
 
     async reloadLevelPromise() {
@@ -225,7 +338,7 @@ export function editorLogic() {
 
           // Restore selection
           if (previousIdx !== -1 && this.config.entities[previousIdx]) {
-            setTimeout(() => {
+            safeTimeout(() => {
               this.selectedEntityIdx = previousIdx;
               this.loadEntityAnimations(previousIdx);
             }, 100);
@@ -241,6 +354,7 @@ export function editorLogic() {
       if (lvl?.hotUpdate) {
         lvl.hotUpdate(this.config);
       }
+      this.markDirty();
     },
 
     // ==================== ENTITY MANAGEMENT ====================
@@ -248,6 +362,7 @@ export function editorLogic() {
     addEntity(type: "npc" | "portal" | "prop" = "npc") {
       const entity = this.createDefaultEntity(type);
       this.config.entities.push(entity);
+      this.markDirty();
       this.reloadLevelPromise();
       this.selectedEntityIdx = this.config.entities.length - 1;
     },
@@ -295,6 +410,7 @@ export function editorLogic() {
       this.config.entities.splice(idx, 1);
       this.selectedEntityIdx = -1;
       this.currentEntityAnims = [];
+      this.markDirty();
       this.reloadLevelPromise();
     },
 
@@ -305,13 +421,14 @@ export function editorLogic() {
       const copy = deepClone(entity);
       copy.position[0] += 1;
       this.config.entities.push(copy);
+      this.markDirty();
       this.reloadLevelPromise();
       this.selectedEntityIdx = this.config.entities.length - 1;
     },
 
     selectEntity(idx: number) {
       this.selectedEntityIdx = idx;
-      setTimeout(() => this.loadEntityAnimations(idx), 100);
+      safeTimeout(() => this.loadEntityAnimations(idx), 100);
     },
 
     deselectEntity() {
@@ -386,7 +503,7 @@ export function editorLogic() {
       const lvl = LevelManager.getInstance().getCurrentLevel();
 
       if (!(lvl instanceof Level)) {
-        setTimeout(() => this.loadEntityAnimations(idx), 200);
+        safeTimeout(() => this.loadEntityAnimations(idx), 200);
         return;
       }
 
@@ -413,7 +530,7 @@ export function editorLogic() {
     onObjectSelected(type: string, id: number) {
       if (type === "entity") {
         this.selectedEntityIdx = id;
-        setTimeout(() => this.loadEntityAnimations(id), 50);
+        safeTimeout(() => this.loadEntityAnimations(id), 50);
       } else {
         this.selectedEntityIdx = -1;
         this.currentEntityAnims = [];
@@ -449,6 +566,8 @@ export function editorLogic() {
           entity.scale = parseFloat(scale.x.toFixed(2));
         }
       }
+
+      this.markDirty();
     },
 
     setTransformMode(mode: TransformMode) {
@@ -482,23 +601,25 @@ export function editorLogic() {
 
     // ==================== SCALE HELPERS ====================
 
-    getEntityScale(entity: any): number {
-      if (entity.type === "prop" && entity.scaling) return entity.scaling[0] || 1;
-      if (typeof entity.scale === "number") return entity.scale;
-      if (Array.isArray(entity.scale)) return entity.scale[0] || 1;
+    getEntityScale(entity: EntitySpawn): number {
+      if (isPropSpawn(entity) && entity.scaling) return entity.scaling[0] || 1;
+      if (isNPCSpawn(entity) && typeof entity.scale === "number") return entity.scale;
       return 1;
     },
 
-    getEntityScaleArray(entity: any): number[] {
-      if (entity.type === "prop" && entity.scaling) return entity.scaling;
-      const s = typeof entity.scale === "number" ? entity.scale : 1;
-      return [s, s, s];
+    getEntityScaleArray(entity: EntitySpawn): number[] {
+      if (isPropSpawn(entity) && entity.scaling) return [...entity.scaling];
+      if (isNPCSpawn(entity)) {
+        const s = typeof entity.scale === "number" ? entity.scale : 1;
+        return [s, s, s];
+      }
+      return [1, 1, 1];
     },
 
-    setEntityScale(entity: any, value: number) {
-      if (entity.type === "prop") {
+    setEntityScale(entity: EntitySpawn, value: number) {
+      if (isPropSpawn(entity)) {
         entity.scaling = [value, value, value];
-      } else {
+      } else if (isNPCSpawn(entity)) {
         entity.scale = value;
       }
       this.updateTransformFromUI();
@@ -562,24 +683,27 @@ export function editorLogic() {
 
     getAssetName: extractAssetName,
 
-    getEntityName(entity: any): string {
+    getEntityName(entity: EntitySpawn | null): string {
       if (!entity) return "Unknown";
       if (entity.name) return entity.name;
 
-      switch (entity.type) {
-        case "npc":
-          return extractAssetName(entity.asset || entity.entity || "Unknown");
-        case "prop":
-          return `Prop: ${extractAssetName(entity.asset)}`;
-        case "portal":
-          return `Portal → ${entity.targetLevel}`;
-        default:
-          return "Unknown";
+      if (isNPCSpawn(entity)) {
+        return extractAssetName(entity.asset || entity.entity || "Unknown");
       }
+      if (isPropSpawn(entity)) {
+        return `Prop: ${extractAssetName(entity.asset)}`;
+      }
+      if (isPortalSpawn(entity)) {
+        return `Portal → ${entity.targetLevel}`;
+      }
+      return "Unknown";
     },
 
-    getModelDisplayName(entity: any): string {
-      return extractAssetName(entity?.asset || entity?.entity || "");
+    getModelDisplayName(entity: EntitySpawn | null): string {
+      if (!entity) return "";
+      if (isNPCSpawn(entity)) return extractAssetName(entity.asset || entity.entity || "");
+      if (isPropSpawn(entity)) return extractAssetName(entity.asset);
+      return "";
     },
 
     getAvailableEntities(): string[] {
@@ -594,12 +718,12 @@ export function editorLogic() {
       return PIPELINE_RANGES[setting as keyof typeof PIPELINE_RANGES] || { min: 0, max: 100, step: 1 };
     },
 
-    // ==================== EXPORT ====================
+    // ==================== IMPORT/EXPORT ====================
 
     copyJson() {
       navigator.clipboard.writeText(JSON.stringify(this.config, null, 2));
       this.copyStatus = "Copied!";
-      setTimeout(() => (this.copyStatus = "Copy JSON"), 2000);
+      safeTimeout(() => (this.copyStatus = "Copy JSON"), 2000);
     },
 
     downloadJson() {
@@ -612,9 +736,63 @@ export function editorLogic() {
       URL.revokeObjectURL(url);
     },
 
+    async importJson() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          const imported = store.importFromJson(text);
+
+          if (imported) {
+            this.levelList = store.getAllMeta();
+            this.loadLevel(imported.id);
+          } else {
+            alert("Failed to import level. Check the JSON format.");
+          }
+        } catch (err) {
+          alert("Failed to read file");
+        }
+      };
+
+      input.click();
+    },
+
+    exportAllLevels() {
+      const json = store.exportAllToJson();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "all_custom_levels.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+
     // ==================== CLEANUP ====================
 
     destroy() {
+      // Save any pending changes
+      if (this.isDirty) {
+        this.saveCurrentLevel();
+      }
+
+      // Clear all pending timeouts
+      for (const id of pendingTimeouts) {
+        window.clearTimeout(id);
+      }
+      pendingTimeouts.length = 0;
+
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+      }
+
       if (keyboardHandler) {
         window.removeEventListener("keydown", keyboardHandler);
         keyboardHandler = null;
@@ -622,6 +800,20 @@ export function editorLogic() {
 
       this.engine?.dispose();
       this.engine = null;
+    },
+
+    // ==================== LEVEL LIST HELPERS ====================
+
+    getLevelList(): LevelMeta[] {
+      return this.levelList;
+    },
+
+    refreshLevelList() {
+      this.levelList = store.getAllMeta();
+    },
+
+    isBuiltInLevel(id: string): boolean {
+      return this.levelList.find((l) => l.id === id)?.isBuiltIn ?? false;
     },
   };
 }

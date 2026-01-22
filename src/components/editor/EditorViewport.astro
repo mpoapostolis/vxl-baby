@@ -7,22 +7,51 @@
   >
     <!-- Left: Modes / Levels -->
     <div class="flex items-center gap-3">
-      <!-- Logic Level Selector -->
+      <!-- Level Selector -->
       <div
-        class="flex items-center gap-2 bg-[var(--bg-input)] rounded px-2 py-0.5 border border-[var(--border-light)]"
+        class="flex items-center gap-1 bg-[var(--bg-input)] rounded px-2 py-0.5 border border-[var(--border-light)]"
       >
         <span
           class="text-[10px] text-[var(--text-muted)] font-bold tracking-wider"
-          >LEVEL</span
+          >SCENE</span
         >
         <select
           x-model="currentLevelId"
           @change="loadLevel(currentLevelId)"
-          class="bg-transparent text-[11px] text-[var(--text-main)] outline-none border-none cursor-pointer"
+          class="bg-transparent text-[11px] text-[var(--text-main)] outline-none border-none cursor-pointer min-w-[100px]"
         >
-          <option value="level1">Level 1</option>
-          <option value="level2">Level 2</option>
+          <template x-for="level in levelList" :key="level.id">
+            <option :value="level.id" x-text="level.name + (level.isBuiltIn ? '' : ' *')"></option>
+          </template>
         </select>
+      </div>
+
+      <!-- Level Actions -->
+      <div class="flex items-center gap-1">
+        <button
+          @click="showNewLevelModal = true"
+          class="blender-btn !px-2 !py-0.5 !text-[10px] bg-green-900/30 hover:bg-green-800/50 border-green-800"
+          title="Create New Scene"
+        >
+          <span>+</span>
+          <span>New</span>
+        </button>
+        <button
+          @click="duplicateLevel(currentLevelId)"
+          class="blender-btn !px-2 !py-0.5 !text-[10px]"
+          title="Duplicate Current Scene"
+        >
+          <span>📋</span>
+        </button>
+        <button
+          @click="deleteLevel(currentLevelId)"
+          class="blender-btn !px-2 !py-0.5 !text-[10px] hover:bg-red-900/50 hover:border-red-800"
+          :class="isBuiltInLevel(currentLevelId) ? 'opacity-30 cursor-not-allowed' : ''"
+          :disabled="isBuiltInLevel(currentLevelId)"
+          title="Delete Scene"
+        >
+          <span>🗑️</span>
+        </button>
       </div>
 
       <div class="w-px h-4 bg-[var(--border-light)]"></div>
@@ -60,6 +89,34 @@
 
     <!-- Right: Actions -->
     <div class="flex items-center gap-2">
+      <!-- Save Status -->
+      <div
+        class="text-[10px] font-mono px-2 py-0.5 rounded"
+        :class="isDirty ? 'text-yellow-400 bg-yellow-900/30' : 'text-green-400 bg-green-900/30'"
+        x-text="saveStatus"
+      ></div>
+
+      <button
+        @click="saveCurrentLevel"
+        class="blender-btn"
+        :class="isDirty ? '!border-yellow-600 !bg-yellow-900/40' : ''"
+        title="Save Scene (auto-saves in 3s)"
+      >
+        <span>💾</span>
+        <span>Save</span>
+      </button>
+
+      <div class="w-px h-4 bg-[var(--border-light)]"></div>
+
+      <button
+        @click="importJson"
+        class="blender-btn"
+        title="Import JSON file"
+      >
+        <span>📂</span>
+        <span>Import</span>
+      </button>
+
       <button
         @click="copyJson"
         class="blender-btn"
@@ -67,7 +124,7 @@
         :title="copyStatus === 'Copied!' ? 'Copied to Clipboard' : 'Copy Level JSON'"
       >
         <span x-show="copyStatus !== 'Copied!'">📋</span>
-        <span x-text="copyStatus || 'Copy JSON'"></span>
+        <span x-text="copyStatus || 'Copy'"></span>
       </button>
 
       <button
@@ -75,7 +132,7 @@
         class="blender-btn"
         title="Download .json file"
       >
-        <span>💾</span>
+        <span>⬇️</span>
         <span>Export</span>
       </button>
     </div>

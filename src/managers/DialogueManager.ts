@@ -1,6 +1,6 @@
 /**
  * DialogueManager - Singleton for managing in-game dialogue
- * Features: typewriter effect, themed UI, proper timer cleanup
+ * Optimized: rAF-based typewriter, efficient DOM updates, proper cleanup
  */
 
 import { AudioManager } from "./AudioManager";
@@ -18,8 +18,9 @@ export interface Dialogue {
 
 type Theme = "default" | "demon" | "wife";
 
-const TYPEWRITER_SPEED_MS = 50;
+const CHARS_PER_SECOND = 20;
 const DEFAULT_LINE_DURATION_MS = 3000;
+const TYPING_SOUND_INTERVAL = 3;
 
 const THEME_CLASSES: Record<Theme, string> = {
   default: "",
@@ -41,7 +42,7 @@ export class DialogueManager {
   private lineIndex = 0;
   private active = false;
 
-  private typeTimer: number | null = null;
+  private rafId: number | null = null;
   private lineTimer: number | null = null;
 
   private constructor() {
@@ -58,14 +59,9 @@ export class DialogueManager {
 
   play(id: string): void {
     const dialogue = this.dialogues.get(id);
-    if (!dialogue) {
-      console.warn(`[DialogueManager] Dialogue "${id}" not found`);
-      return;
-    }
+    if (!dialogue) return;
 
-    // Clear any existing dialogue
     this.clearTimers();
-
     this.current = dialogue;
     this.lineIndex = 0;
     this.active = true;
@@ -108,16 +104,35 @@ export class DialogueManager {
     this.textEl.classList.add("cursor");
 
     let charIndex = 0;
+    let lastTime = performance.now();
+    let soundCounter = 0;
 
-    this.typeTimer = window.setInterval(() => {
-      if (charIndex < text.length) {
-        this.textEl!.textContent = text.slice(0, ++charIndex);
-        this.audio.play("typing", false, 0.4);
-      } else {
-        this.clearTypeTimer();
-        this.textEl?.classList.remove("cursor");
+    const animate = (now: number) => {
+      const delta = now - lastTime;
+      const charsToAdd = Math.floor((delta / 1000) * CHARS_PER_SECOND);
+
+      if (charsToAdd > 0) {
+        lastTime = now;
+        charIndex = Math.min(charIndex + charsToAdd, text.length);
+        this.textEl!.textContent = text.slice(0, charIndex);
+
+        // Sound feedback
+        soundCounter += charsToAdd;
+        if (soundCounter >= TYPING_SOUND_INTERVAL) {
+          this.audio.play("typing", false, 0.4);
+          soundCounter = 0;
+        }
       }
-    }, TYPEWRITER_SPEED_MS);
+
+      if (charIndex < text.length) {
+        this.rafId = requestAnimationFrame(animate);
+      } else {
+        this.textEl?.classList.remove("cursor");
+        this.rafId = null;
+      }
+    };
+
+    this.rafId = requestAnimationFrame(animate);
   }
 
   private scheduleNextLine(duration: number): void {
@@ -128,20 +143,12 @@ export class DialogueManager {
   }
 
   private clearTimers(): void {
-    this.clearTypeTimer();
-    this.clearLineTimer();
-  }
-
-  private clearTypeTimer(): void {
-    if (this.typeTimer !== null) {
-      window.clearInterval(this.typeTimer);
-      this.typeTimer = null;
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
     }
-  }
-
-  private clearLineTimer(): void {
     if (this.lineTimer !== null) {
-      window.clearTimeout(this.lineTimer);
+      clearTimeout(this.lineTimer);
       this.lineTimer = null;
     }
   }
@@ -155,25 +162,21 @@ export class DialogueManager {
   }
 
   private setSpeaker(name: string): void {
-    if (this.speakerEl) {
-      this.speakerEl.textContent = name;
-    }
+    if (this.speakerEl) this.speakerEl.textContent = name;
   }
 
   private applyTheme(speaker: string): void {
     if (!this.overlay) return;
 
     // Remove all themes
-    Object.values(THEME_CLASSES).forEach((cls) => {
-      if (cls) this.overlay!.classList.remove(cls);
-    });
+    for (const cls of Object.values(THEME_CLASSES)) {
+      if (cls) this.overlay.classList.remove(cls);
+    }
 
     // Apply speaker-specific theme
     const theme: Theme = speaker === "Demon" ? "demon" : speaker === "Wife" ? "wife" : "default";
     const themeClass = THEME_CLASSES[theme];
-    if (themeClass) {
-      this.overlay.classList.add(themeClass);
-    }
+    if (themeClass) this.overlay.classList.add(themeClass);
   }
 
   private show(): void {

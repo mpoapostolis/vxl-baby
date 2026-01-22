@@ -140,8 +140,13 @@ export abstract class BaseLevel {
       this.scene,
     );
     const rootMesh = playerData.meshes[0];
+
+    if (!rootMesh) {
+      throw new Error("[BaseLevel] Failed to load player mesh - no meshes found");
+    }
+
     this.player = new Player(
-      rootMesh!,
+      rootMesh,
       playerData.animationGroups,
       this.camera,
       this.shadowGenerator,
@@ -232,6 +237,10 @@ export abstract class BaseLevel {
   protected onUpdate(): void {}
 
   public dispose(): void {
+    this.player?.dispose();
+    this.camera?.detachControl();
+    this.shadowGenerator?.dispose();
+    this.pipeline?.dispose();
     this.scene?.dispose();
   }
 

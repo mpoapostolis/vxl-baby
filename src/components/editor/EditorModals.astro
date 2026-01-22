@@ -2,6 +2,67 @@
 
 ---
 
+<!-- New Level Modal -->
+<div
+  x-data
+  x-show="showNewLevelModal"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+  style="display: none;"
+  x-transition.opacity.duration.200ms
+  @click.self="showNewLevelModal = false"
+  @keydown.escape.window="showNewLevelModal = false"
+>
+  <div
+    class="bg-[var(--bg-panel)] border border-[var(--border-dark)] rounded-lg shadow-2xl w-[400px] flex flex-col overflow-hidden animate-scale-in"
+    @click.stop
+  >
+    <div
+      class="h-10 bg-[var(--bg-header)] border-b border-[var(--border-dark)] flex justify-between items-center px-4 select-none"
+    >
+      <span class="text-sm font-bold text-[var(--text-main)]">Create New Scene</span>
+      <button
+        @click="showNewLevelModal = false"
+        class="text-[var(--text-muted)] hover:text-white px-2 text-xl"
+      >×</button>
+    </div>
+
+    <div class="p-6 flex flex-col gap-4">
+      <div>
+        <label class="text-[11px] text-[var(--text-muted)] font-bold uppercase tracking-wider block mb-2">
+          Scene Name
+        </label>
+        <input
+          type="text"
+          x-model="newLevelName"
+          @keydown.enter="createNewLevel(newLevelName)"
+          placeholder="My Awesome Level"
+          class="w-full bg-[var(--bg-input)] border border-[var(--border-light)] rounded text-sm text-white px-3 py-2 outline-none focus:border-[var(--accent-secondary)] transition-colors"
+          x-ref="newLevelInput"
+          x-init="$watch('showNewLevelModal', val => val && setTimeout(() => $refs.newLevelInput?.focus(), 100))"
+        />
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button
+          @click="showNewLevelModal = false"
+          class="blender-btn"
+        >
+          Cancel
+        </button>
+        <button
+          @click="createNewLevel(newLevelName)"
+          class="blender-btn !bg-green-900/50 !border-green-700 hover:!bg-green-800/60"
+          :disabled="!newLevelName.trim()"
+          :class="!newLevelName.trim() ? 'opacity-50 cursor-not-allowed' : ''"
+        >
+          <span>+</span>
+          <span>Create Scene</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Asset Modal -->
 <div
   x-data

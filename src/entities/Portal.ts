@@ -1,6 +1,6 @@
 /**
  * Portal - Interactive teleport orb with animations
- * Features: rotation, floating animation, proper observer cleanup
+ * Features: rotation, floating animation, editor mode support
  */
 
 import {
@@ -26,6 +26,7 @@ interface PortalConfig {
   rotationSpeed: number;
   floatSpeed: number;
   floatAmplitude: number;
+  editorMode?: boolean;
 }
 
 const DEFAULT_CONFIG: PortalConfig = {
@@ -36,6 +37,7 @@ const DEFAULT_CONFIG: PortalConfig = {
   rotationSpeed: 0.02,
   floatSpeed: 3,
   floatAmplitude: 0.3,
+  editorMode: false,
 };
 
 export class Portal {
@@ -46,10 +48,12 @@ export class Portal {
   private readonly material: StandardMaterial;
   private readonly startY: number;
   private readonly config: PortalConfig;
+  private readonly targetLevelId: string;
 
   private renderObserver: Observer<Scene> | null = null;
   private time = 0;
   private disposed = false;
+  private _editorMode = false;
 
   constructor(
     scene: Scene,
@@ -60,6 +64,8 @@ export class Portal {
     this.scene = scene;
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.startY = position.y;
+    this.targetLevelId = targetLevelId;
+    this._editorMode = config.editorMode ?? false;
 
     // Create mesh
     this.mesh = MeshBuilder.CreateSphere("portal", { diameter: this.config.diameter }, scene);
@@ -78,8 +84,10 @@ export class Portal {
     this.light.intensity = this.config.lightIntensity;
     this.light.range = this.config.lightRange;
 
-    // Interaction
-    this.setupInteraction(targetLevelId);
+    // Interaction (only in game mode)
+    if (!this._editorMode) {
+      this.setupInteraction();
+    }
 
     // Animation
     this.setupAnimation();
@@ -88,12 +96,27 @@ export class Portal {
     this.mesh.onDisposeObservable.addOnce(() => this.dispose());
   }
 
-  private setupInteraction(targetLevelId: string): void {
+  get editorMode(): boolean {
+    return this._editorMode;
+  }
+
+  set editorMode(value: boolean) {
+    this._editorMode = value;
+    // Remove action manager in editor mode
+    if (value && this.mesh.actionManager) {
+      this.mesh.actionManager.dispose();
+      this.mesh.actionManager = null;
+    } else if (!value && !this.mesh.actionManager) {
+      this.setupInteraction();
+    }
+  }
+
+  private setupInteraction(): void {
     this.mesh.actionManager = new ActionManager(this.scene);
     this.mesh.actionManager.registerAction(
       new ExecuteCodeAction(ActionManager.OnPickTrigger, () => {
-        if (this.disposed) return;
-        LevelManager.getInstance().load(targetLevelId);
+        if (this.disposed || this._editorMode) return;
+        LevelManager.getInstance().load(this.targetLevelId);
         AudioManager.getInstance().play("teleport");
       })
     );

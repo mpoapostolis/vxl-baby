@@ -1,6 +1,6 @@
 /**
  * Player - Character controller with physics, animations, and lighting
- * Features: proper dispose, reusable vectors to minimize GC
+ * Optimized: reusable vectors, cached animation lookups, minimal allocations
  */
 
 import {
@@ -22,6 +22,10 @@ const MOVE_SPEED = 5;
 const CAPSULE_HEIGHT = 2;
 const CAPSULE_RADIUS = 0.25;
 
+// Pre-allocated direction vectors
+const FORWARD_REF = Vector3.Forward();
+const RIGHT_REF = Vector3.Right();
+
 export class Player {
   readonly mesh: AbstractMesh;
   readonly capsule: AbstractMesh;
@@ -31,12 +35,13 @@ export class Player {
   private readonly anims: Map<string, AnimationGroup>;
   private readonly input: InputManager;
   private readonly camera: ArcRotateCamera;
-  private readonly scene: Scene;
 
-  // Reusable vectors to avoid GC pressure
+  // Reusable vectors - zero GC pressure
   private readonly moveVec = Vector3.Zero();
   private readonly velocityVec = Vector3.Zero();
   private readonly lookVec = Vector3.Zero();
+  private readonly forwardVec = Vector3.Zero();
+  private readonly rightVec = Vector3.Zero();
 
   private currentAnim: string | null = null;
   private disposed = false;
@@ -50,7 +55,6 @@ export class Player {
   ) {
     this.mesh = mesh;
     this.camera = camera;
-    this.scene = scene;
     this.input = InputManager.getInstance();
 
     // Physics capsule
@@ -66,7 +70,7 @@ export class Player {
     this.mesh.parent = this.capsule;
     this.mesh.position.y = -1;
 
-    // Physics
+    // Physics - zero inertia prevents rotation artifacts
     this.physicsAggregate = new PhysicsAggregate(
       this.capsule,
       PhysicsShapeType.CAPSULE,
@@ -75,14 +79,12 @@ export class Player {
     );
     this.physicsAggregate.body.setMassProperties({ inertia: Vector3.Zero() });
 
-    // Animations
+    // Build animation map for O(1) lookup
     this.anims = new Map(animationGroups.map((ag) => [ag.name, ag]));
     scene.stopAllAnimations();
 
-    // Shadow
+    // Shadow & lighting
     shadowGenerator.addShadowCaster(mesh);
-
-    // Spotlight
     this.spotLight = new SpotLight(
       "playerLight",
       Vector3.Zero(),
@@ -94,21 +96,21 @@ export class Player {
     this.spotLight.position.y = 2;
     this.spotLight.parent = this.mesh;
 
-    // Initial animation
     this.playAnim(ANIMATIONS.Idle_Neutral);
   }
 
   update(): void {
     if (this.disposed) return;
 
-    const forward = this.camera.getDirection(Vector3.Forward());
-    const right = this.camera.getDirection(Vector3.Right());
-    forward.y = 0;
-    right.y = 0;
-    forward.normalize();
-    right.normalize();
+    // Reuse vectors - no allocations
+    this.camera.getDirectionToRef(FORWARD_REF, this.forwardVec);
+    this.camera.getDirectionToRef(RIGHT_REF, this.rightVec);
+    this.forwardVec.y = 0;
+    this.rightVec.y = 0;
+    this.forwardVec.normalize();
+    this.rightVec.normalize();
 
-    // Reset and calculate move direction
+    // Reset move direction
     this.moveVec.setAll(0);
 
     const w = this.input.isKeyDown("KeyW");
@@ -116,10 +118,10 @@ export class Player {
     const a = this.input.isKeyDown("KeyA");
     const d = this.input.isKeyDown("KeyD");
 
-    if (w) this.moveVec.addInPlace(forward);
-    if (s) this.moveVec.subtractInPlace(forward);
-    if (a) this.moveVec.subtractInPlace(right);
-    if (d) this.moveVec.addInPlace(right);
+    if (w) this.moveVec.addInPlace(this.forwardVec);
+    if (s) this.moveVec.subtractInPlace(this.forwardVec);
+    if (a) this.moveVec.subtractInPlace(this.rightVec);
+    if (d) this.moveVec.addInPlace(this.rightVec);
 
     const isMoving = w || s || a || d;
     const currentY = this.physicsAggregate.body.getLinearVelocity().y;
@@ -134,13 +136,10 @@ export class Player {
       this.physicsAggregate.body.setLinearVelocity(this.velocityVec);
 
       // Select animation based on direction
-      const anim = s
-        ? ANIMATIONS.Run_Back
-        : a
-          ? ANIMATIONS.Run_Left
-          : d
-            ? ANIMATIONS.Run_Right
-            : ANIMATIONS.Run;
+      const anim = s ? ANIMATIONS.Run_Back
+        : a ? ANIMATIONS.Run_Left
+        : d ? ANIMATIONS.Run_Right
+        : ANIMATIONS.Run;
       this.playAnim(anim);
     } else {
       this.velocityVec.set(0, currentY, 0);
@@ -148,8 +147,8 @@ export class Player {
       this.playAnim(ANIMATIONS.Idle_Neutral);
     }
 
-    // Look direction
-    this.lookVec.copyFrom(forward).scaleInPlace(-2);
+    // Look direction - reuse vector
+    this.lookVec.copyFrom(this.forwardVec).scaleInPlace(-2);
     this.lookVec.y = -Math.PI / 3;
     this.mesh.lookAt(this.lookVec);
 

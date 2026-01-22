@@ -3,7 +3,6 @@ import {
   Vector3,
   GizmoManager,
   AbstractMesh,
-  Color3,
   PhysicsBody,
   PhysicsMotionType,
   PhysicsShapeMesh,
@@ -43,11 +42,19 @@ export class Level extends BaseLevel {
   private props: Map<number, AbstractMesh> = new Map();
   private triggerStates: Map<Trigger, TriggerState> = new Map();
 
+  // O(1) lookups
+  private entityMeshIndex: Map<number, AbstractMesh> = new Map();
+  private npcNameIndex: Map<string, NPC> = new Map();
+
+  // Time accumulator for effects (avoids Date.now() each frame)
+  private effectTime = 0;
+
   // Editor
   private gizmoManager?: GizmoManager;
-  private gizmoObservers: Observer<unknown>[] = [];
+  private gizmoObservers: Observer<any>[] = [];
   private onObjectSelected?: SelectCallback;
   private onTransformChange?: TransformCallback;
+  private isEditorMode = false;
 
   constructor(config: LevelConfig) {
     super({
@@ -129,35 +136,42 @@ export class Level extends BaseLevel {
       animations: spawn.animations,
     });
 
+    const name = spawn.name || spawn.entity || spawn.asset;
     this.npcs.set(index, npc);
-    this.setEntityMetadata(npc.mesh, index, "npc", spawn.name || spawn.entity || spawn.asset);
+    this.setEntityMetadata(npc.mesh, index, "npc", name);
+
+    // Build O(1) name index
+    if (name) this.npcNameIndex.set(name, npc);
+
+    // Build mesh index
+    this.entityMeshIndex.set(index, npc.mesh);
   }
 
   private spawnPortalEntity(index: number, spawn: any, position: Vector3): void {
-    const portal = this.entityFactory.spawnPortal(position, spawn.targetLevel);
+    const portal = this.entityFactory.spawnPortal(position, spawn.targetLevel, this.isEditorMode);
     this.portals.set(index, portal);
 
-    if (!this.portal) {
-      this.portal = portal;
-    }
+    if (!this.portal) this.portal = portal;
 
     if (portal.mesh) {
-      this.setEntityMetadata(portal.mesh as AbstractMesh, index, "portal");
+      const mesh = portal.mesh as AbstractMesh;
+      this.setEntityMetadata(mesh, index, "portal");
+      this.entityMeshIndex.set(index, mesh);
     }
   }
 
   private async spawnProp(index: number, spawn: any, position: Vector3): Promise<void> {
     const data = await this.assetManager.loadMesh(spawn.asset, this.scene);
     const root = data.meshes[0];
-
     if (!root) return;
 
     root.position.copyFrom(position);
-    if (spawn.rotation) root.rotation = new Vector3(...spawn.rotation);
-    if (spawn.scaling) root.scaling = new Vector3(...spawn.scaling);
+    if (spawn.rotation) root.rotation.set(spawn.rotation[0], spawn.rotation[1], spawn.rotation[2]);
+    if (spawn.scaling) root.scaling.set(spawn.scaling[0], spawn.scaling[1], spawn.scaling[2]);
 
     this.props.set(index, root);
     this.setEntityMetadata(root, index, "prop");
+    this.entityMeshIndex.set(index, root);
 
     if (spawn.physics?.enabled) {
       this.setupPropPhysics(root as Mesh, spawn.physics);
@@ -181,20 +195,18 @@ export class Level extends BaseLevel {
   }
 
   private disposeEntities(): void {
-    for (const npc of this.npcs.values()) {
-      npc.dispose();
-    }
+    for (const npc of this.npcs.values()) npc.dispose();
     this.npcs.clear();
 
-    for (const portal of this.portals.values()) {
-      portal.mesh?.dispose();
-    }
+    for (const portal of this.portals.values()) portal.mesh?.dispose();
     this.portals.clear();
 
-    for (const prop of this.props.values()) {
-      prop.dispose();
-    }
+    for (const prop of this.props.values()) prop.dispose();
     this.props.clear();
+
+    // Clear indexes
+    this.entityMeshIndex.clear();
+    this.npcNameIndex.clear();
   }
 
   private registerDialogues(): void {
@@ -237,11 +249,7 @@ export class Level extends BaseLevel {
   }
 
   private findNPCByName(name: string): NPC | undefined {
-    for (const npc of this.npcs.values()) {
-      const meta = npc.mesh.metadata as EntityMetadata | undefined;
-      if (meta?.id === name) return npc;
-    }
-    return undefined;
+    return this.npcNameIndex.get(name);
   }
 
   private executeTriggerActions(actions: TriggerAction[]): void {
@@ -263,6 +271,10 @@ export class Level extends BaseLevel {
   }
 
   private processEffects(): void {
+    // Update time accumulator using engine delta time (avoids Date.now() per frame)
+    const deltaTime = this.scene.getEngine().getDeltaTime() * 0.001;
+    this.effectTime += deltaTime;
+
     for (const effect of this.levelConfig.effects ?? []) {
       this.applyEffect(effect);
     }
@@ -283,7 +295,7 @@ export class Level extends BaseLevel {
 
       case "heartbeatVignette":
         if (this.pipeline) {
-          const time = Date.now() * effect.speed;
+          const time = this.effectTime * effect.speed;
           const heartbeat = (Math.sin(time) + Math.sin(time * 2) + Math.sin(time * 0.5)) / 3;
           this.pipeline.imageProcessing.vignetteWeight = effect.baseWeight + heartbeat * effect.amplitude;
         }
@@ -301,10 +313,16 @@ export class Level extends BaseLevel {
   // ==================== EDITOR API ====================
 
   public enableEditorMode(onSelect: SelectCallback, onChange: TransformCallback): void {
-    if (this.gizmoManager) return;
+    this.cleanupGizmos();
+    this.isEditorMode = true;
 
     this.onObjectSelected = onSelect;
     this.onTransformChange = onChange;
+
+    // Disable portal interactions
+    for (const portal of this.portals.values()) {
+      portal.editorMode = true;
+    }
 
     this.gizmoManager = new GizmoManager(this.scene);
     this.gizmoManager.positionGizmoEnabled = true;
@@ -338,16 +356,12 @@ export class Level extends BaseLevel {
     const gm = this.gizmoManager;
     if (!gm) return false;
 
+    const { positionGizmo, rotationGizmo, scaleGizmo } = gm.gizmos;
+
     return !!(
-      gm.gizmos.positionGizmo?.xGizmo.isHovered ||
-      gm.gizmos.positionGizmo?.yGizmo.isHovered ||
-      gm.gizmos.positionGizmo?.zGizmo.isHovered ||
-      gm.gizmos.rotationGizmo?.xGizmo.isHovered ||
-      gm.gizmos.rotationGizmo?.yGizmo.isHovered ||
-      gm.gizmos.rotationGizmo?.zGizmo.isHovered ||
-      gm.gizmos.scaleGizmo?.xGizmo.isHovered ||
-      gm.gizmos.scaleGizmo?.yGizmo.isHovered ||
-      gm.gizmos.scaleGizmo?.zGizmo.isHovered
+      (positionGizmo && (positionGizmo.xGizmo.isHovered || positionGizmo.yGizmo.isHovered || positionGizmo.zGizmo.isHovered)) ||
+      (rotationGizmo && (rotationGizmo.xGizmo.isHovered || rotationGizmo.yGizmo.isHovered || rotationGizmo.zGizmo.isHovered)) ||
+      (scaleGizmo && (scaleGizmo.xGizmo.isHovered || scaleGizmo.yGizmo.isHovered || scaleGizmo.zGizmo.isHovered))
     );
   }
 
@@ -426,9 +440,7 @@ export class Level extends BaseLevel {
   }
 
   private findMeshByIndex(index: number): AbstractMesh | undefined {
-    return this.scene.meshes.find(
-      (m) => (m.metadata as EntityMetadata)?.type === "entity" && (m.metadata as EntityMetadata).index === index
-    );
+    return this.entityMeshIndex.get(index);
   }
 
   public getEntityAnimationGroups(index: number): string[] {
@@ -446,27 +458,28 @@ export class Level extends BaseLevel {
   }
 
   public async swapNPCModel(index: number, assetPath: string, scale?: number): Promise<string[]> {
-    // Dispose old NPC
     const oldNpc = this.npcs.get(index);
     if (oldNpc) {
       oldNpc.dispose();
       this.npcs.delete(index);
     }
 
-    // Get position from config
     const spawn = this.levelConfig.entities[index];
     const position = spawn?.position ? new Vector3(...spawn.position) : Vector3.Zero();
+    const animations = spawn?.type === "npc" ? spawn.animations : undefined;
 
-    // Spawn new NPC
     const newNpc = await this.entityFactory.spawnNPC({
       asset: assetPath,
       position,
       scale,
-      animations: spawn?.animations,
+      animations,
     });
 
+    const name = `npc_${index}`;
     this.npcs.set(index, newNpc);
-    this.setEntityMetadata(newNpc.mesh, index, "npc", `npc_${index}`);
+    this.setEntityMetadata(newNpc.mesh, index, "npc", name);
+    this.entityMeshIndex.set(index, newNpc.mesh);
+    this.npcNameIndex.set(name, newNpc);
 
     return newNpc.getAnimationNames();
   }
@@ -476,8 +489,7 @@ export class Level extends BaseLevel {
     this.levelConfig = config;
   }
 
-  public override dispose(): void {
-    // Clean up gizmo observers
+  private cleanupGizmos(): void {
     for (const obs of this.gizmoObservers) {
       obs.remove();
     }
@@ -485,7 +497,10 @@ export class Level extends BaseLevel {
 
     this.gizmoManager?.dispose();
     this.gizmoManager = undefined;
+  }
 
+  public override dispose(): void {
+    this.cleanupGizmos();
     this.disposeEntities();
     this.triggerStates.clear();
 

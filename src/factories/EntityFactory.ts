@@ -83,7 +83,7 @@ export class EntityFactory {
     return `/assets/${path}`;
   }
 
-  spawnPortal(position: Vector3, targetLevel: string): Portal {
-    return new Portal(this.scene, position, targetLevel);
+  spawnPortal(position: Vector3, targetLevel: string, editorMode = false): Portal {
+    return new Portal(this.scene, position, targetLevel, { editorMode });
   }
 }

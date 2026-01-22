@@ -10,7 +10,11 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
-      exclude: [ "@babylonjs/havok"],
+      exclude: ["@babylonjs/havok"],
+    },
+    build: {
+      // Babylon.js is a large 3D engine - adjust warning limit
+      chunkSizeWarningLimit: 7000,
     },
   },
 

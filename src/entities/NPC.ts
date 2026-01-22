@@ -17,11 +17,13 @@ export interface NPCOptions {
   animations?: NPCAnimations;
 }
 
-const DEFAULT_IDLE_PATTERNS = ["idle", "Idle", "CharacterArmature|Idle"];
+const IDLE_PATTERNS = ["idle", "characterarmature|idle"];
 
 export class NPC {
   public readonly mesh: AbstractMesh;
-  public readonly anims: AnimationGroup[];
+  private readonly animMap: Map<string, AnimationGroup>;
+  private readonly animList: AnimationGroup[];
+  private currentAnim: AnimationGroup | null = null;
   private disposed = false;
 
   constructor(
@@ -32,113 +34,113 @@ export class NPC {
     options: NPCOptions = {},
   ) {
     const root = meshes[0];
-    if (!root) {
-      throw new Error("NPC requires at least one mesh");
-    }
+    if (!root) throw new Error("NPC requires at least one mesh");
 
     this.mesh = root;
-    this.anims = animationGroups;
+    this.animList = animationGroups;
+
+    // Build O(1) lookup map
+    this.animMap = new Map();
+    for (const ag of animationGroups) {
+      this.animMap.set(ag.name, ag);
+      this.animMap.set(ag.name.toLowerCase(), ag);
+    }
 
     // Apply transform
-    const scale = options.scale ?? 1;
     this.mesh.position = position;
-    this.mesh.scaling.setAll(scale);
+    this.mesh.scaling.setAll(options.scale ?? 1);
 
     // Setup shadows
     if (options.castShadow !== false) {
-      for (const mesh of meshes) {
-        shadowGenerator.addShadowCaster(mesh);
-      }
+      for (const m of meshes) shadowGenerator.addShadowCaster(m);
     }
 
-    // Stop all animations first
-    this.stopAllAnimations();
-
-    // Play idle animation
-    const idleAnim = this.findAnimation(
-      options.animations?.idle || options.idleAnimation
-    );
-    idleAnim?.play(true);
+    // Stop all & play idle
+    this.stopAll();
+    const idle = this.findAnim(options.animations?.idle || options.idleAnimation);
+    if (idle) {
+      idle.play(true);
+      this.currentAnim = idle;
+    }
   }
 
-  private findAnimation(
-    animationName?: string | string[]
-  ): AnimationGroup | undefined {
-    if (!animationName) {
-      return this.findIdleByPattern();
-    }
+  private findAnim(name?: string | string[]): AnimationGroup | undefined {
+    if (!name) return this.findIdleAnim();
 
-    const names = Array.isArray(animationName) ? animationName : [animationName];
+    const names = Array.isArray(name) ? name : [name];
 
-    // Exact match first
-    for (const name of names) {
-      const exact = this.anims.find((a) => a.name === name);
+    // O(1) exact lookup
+    for (const n of names) {
+      const exact = this.animMap.get(n) || this.animMap.get(n.toLowerCase());
       if (exact) return exact;
     }
 
-    // Partial match
-    for (const name of names) {
-      const partial = this.anims.find((a) =>
-        a.name.toLowerCase().includes(name.toLowerCase())
-      );
-      if (partial) return partial;
+    // Fallback: partial match (rare)
+    for (const n of names) {
+      const lower = n.toLowerCase();
+      for (const ag of this.animList) {
+        if (ag.name.toLowerCase().includes(lower)) return ag;
+      }
     }
 
-    return this.findIdleByPattern();
+    return this.findIdleAnim();
   }
 
-  private findIdleByPattern(): AnimationGroup | undefined {
-    for (const pattern of DEFAULT_IDLE_PATTERNS) {
-      const anim = this.anims.find((a) =>
-        a.name.toLowerCase().includes(pattern.toLowerCase())
-      );
-      if (anim) return anim;
+  private findIdleAnim(): AnimationGroup | undefined {
+    for (const pattern of IDLE_PATTERNS) {
+      for (const ag of this.animList) {
+        if (ag.name.toLowerCase().includes(pattern)) return ag;
+      }
     }
-    return this.anims[0];
+    return this.animList[0];
   }
 
-  public get position(): Vector3 {
+  get position(): Vector3 {
     return this.mesh.position;
   }
 
-  public set position(value: Vector3) {
+  set position(value: Vector3) {
     this.mesh.position = value;
   }
 
-  public getAnimationNames(): string[] {
-    return this.anims.map((a) => a.name);
+  getAnimationNames(): string[] {
+    return this.animList.map((a) => a.name);
   }
 
-  public playAnimation(name: string, loop = true): boolean {
+  playAnimation(name: string, loop = true): boolean {
     if (this.disposed) return false;
 
-    const anim = this.anims.find(
-      (a) => a.name === name || a.name.includes(name)
-    );
+    const anim = this.animMap.get(name) || this.animMap.get(name.toLowerCase());
+    if (!anim) {
+      // Fallback partial match
+      const found = this.animList.find((a) => a.name.toLowerCase().includes(name.toLowerCase()));
+      if (!found) return false;
+      return this.playAnimGroup(found, loop);
+    }
 
-    if (!anim) return false;
+    return this.playAnimGroup(anim, loop);
+  }
 
-    this.stopAllAnimations();
+  private playAnimGroup(anim: AnimationGroup, loop: boolean): boolean {
+    if (this.currentAnim === anim) return true;
+
+    this.stopAll();
     anim.start(true, 1.0, anim.from, anim.to, loop);
+    this.currentAnim = anim;
     return true;
   }
 
-  public stopAllAnimations(): void {
-    for (const anim of this.anims) {
-      anim.stop();
-    }
+  private stopAll(): void {
+    for (const ag of this.animList) ag.stop();
+    this.currentAnim = null;
   }
 
-  public dispose(): void {
+  dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
 
-    this.stopAllAnimations();
-
-    for (const anim of this.anims) {
-      anim.dispose();
-    }
-
+    this.stopAll();
+    for (const ag of this.animList) ag.dispose();
     this.mesh.dispose(false, true);
   }
 }
