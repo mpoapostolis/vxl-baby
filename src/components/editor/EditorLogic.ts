@@ -180,7 +180,7 @@ export function editorLogic() {
 
     // ==================== COMPUTED ====================
 
-    get filteredAssets() {
+    get filteredAssets(): readonly string[] {
       const source =
         this.selectingAssetFor?.field === "music"
           ? this.availableMusic

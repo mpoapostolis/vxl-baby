@@ -2,9 +2,9 @@
   class="w-80 blender-panel shrink-0 z-10 flex flex-col h-full overflow-hidden"
 >
   <div class="blender-header select-none">
-    <div class="flex items-center gap-2">
-      <span class="text-[14px]">⚙️</span>
-      <span>Properties</span>
+    <div class="flex items-center gap-3">
+      <span class="text-base text-[var(--accent-primary)]">⚙️</span>
+      <span class="tracking-widest">Properties</span>
     </div>
   </div>
 
@@ -282,24 +282,24 @@
       <div>
         <!-- Entity Header Panel -->
         <div
-          class="p-3 bg-[var(--bg-input)] border-b border-[var(--border-light)] mb-2"
+          class="p-4 bg-[var(--bg-header)] border-b border-[var(--border-field)] mb-2 flex flex-col gap-2"
         >
-          <div class="flex items-start gap-3">
+          <div class="flex items-start gap-4">
             <div
-              class="w-10 h-10 bg-[var(--bg-panel)] rounded flex items-center justify-center text-2xl border border-[var(--border-light)] shrink-0"
+              class="w-12 h-12 bg-[var(--bg-panel)] rounded-md flex items-center justify-center text-3xl border border-[var(--border-field)] shrink-0 shadow-sm"
             >
               <span x-text="getIcon(config.entities[selectedEntityIdx].type)"
               ></span>
             </div>
-            <div class="flex-1 min-w-0">
+            <div class="flex-1 min-w-0 flex flex-col justify-center h-12">
               <input
                 type="text"
                 x-model="config.entities[selectedEntityIdx].name"
                 placeholder="Entity Name"
-                class="w-full bg-transparent text-[14px] font-bold text-[var(--text-main)] placeholder-[var(--text-dim)] border-b border-transparent hover:border-[var(--border-light)] focus:border-[var(--accent-secondary)] outline-none transition-colors px-0 py-0.5"
+                class="w-full bg-transparent text-[15px] font-bold text-[var(--text-main)] placeholder-[var(--text-muted)] border-b border-transparent hover:border-[var(--border-field)] focus:border-[var(--accent-primary)] outline-none transition-all px-0 py-1"
               />
               <div
-                class="text-[9px] text-[var(--accent-primary)] uppercase tracking-widest font-bold mt-0.5"
+                class="text-[10px] text-[var(--accent-primary)] uppercase tracking-widest font-bold mt-1"
                 x-text="config.entities[selectedEntityIdx].type"
               >
               </div>

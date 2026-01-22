@@ -19,12 +19,14 @@
 >
   <!-- Toolbar / Header -->
   <div
-    class="h-10 bg-[var(--bg-header)] border-b border-[var(--border-dark)] flex items-center px-3 justify-between shrink-0 select-none"
+    class="h-12 bg-[var(--bg-header)] border-b border-[var(--border-field)] flex items-center px-4 justify-between shrink-0 select-none shadow-md z-10"
   >
-    <div class="flex items-center gap-3">
-      <div class="flex items-center gap-2 text-[var(--text-main)]">
-        <span class="text-lg">🕸️</span>
-        <span class="font-bold tracking-wide text-sm">QUEST FLOW</span>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2 text-[var(--accent-primary)]">
+        <span class="text-xl">🕸️</span>
+        <span class="font-bold tracking-widest text-xs uppercase"
+          >Quest Flow</span
+        >
       </div>
 
       <div class="w-px h-5 bg-[var(--border-light)]"></div>
@@ -33,18 +35,19 @@
       <div class="relative" x-data="{ open: false }">
         <button
           @click="open = !open"
-          class="blender-btn text-[var(--text-muted)] hover:text-[var(--text-main)]"
+          class="blender-btn"
+          :class="{ 'active': open }"
         >
           <span>📋</span>
           <span>Templates</span>
-          <span class="text-[8px] ml-1">▼</span>
+          <span class="text-[8px] ml-1 opacity-50">▼</span>
         </button>
 
         <div
           x-show="open"
           @click.away="open = false"
-          x-transition
-          class="absolute top-full left-0 mt-1 bg-[#1a1a1a] border border-[var(--border-light)] rounded-lg shadow-xl min-w-[200px] py-1 z-[100]"
+          x-transition.origin.top.left
+          class="absolute top-full left-0 mt-2 bg-[var(--bg-panel)] border border-[var(--border-field)] rounded-md shadow-[var(--shadow-lg)] min-w-[220px] py-1 z-[100] animate-slide-up"
         >
           <button
             @click="window.loadTemplate('empty'); open = false"
@@ -82,19 +85,21 @@
       <div class="w-px h-5 bg-[var(--border-light)]"></div>
 
       <div
-        class="flex items-center gap-2 bg-[var(--bg-input)] rounded px-2 py-0.5 border border-[var(--border-light)] text-[10px]"
+        class="flex items-center gap-2 bg-[var(--bg-input)] rounded px-3 py-1 border border-[var(--border-field)] text-[11px]"
       >
-        <span class="text-[var(--text-muted)]">NPC:</span>
+        <span class="text-[var(--text-muted)] font-medium">NPC:</span>
         <span
-          class="text-[var(--accent-primary)] font-bold"
+          class="text-[var(--accent-primary)] font-bold uppercase tracking-wide"
           x-text="config.entities[selectedEntityIdx]?.name || config.entities[selectedEntityIdx]?.asset || 'Unknown'"
         ></span>
       </div>
     </div>
 
     <div class="flex items-center gap-2">
-      <div class="text-[10px] text-[var(--text-muted)] mr-2">
-        <span class="opacity-60">RIGHT CLICK</span> Add Nodes
+      <div
+        class="text-[10px] text-[var(--text-dim)] mr-4 font-medium uppercase tracking-wider"
+      >
+        <span class="opacity-50">Right Click to</span> Add Nodes
       </div>
 
       <button
@@ -142,19 +147,20 @@
     // ═══════════════════════════════════════════════════
     // NODE: START
     // ═══════════════════════════════════════════════════
+    // --- CUSTOM NODES with Premium Colors (High Contrast) ---
+    // Palette: Header = Darker Accent (text is white), Body = Dark Neutral (#101010)
+
     function StartNode() {
       this.addOutput("→", "flow");
       this.title = "▶ START";
-      this.color = "#2d5a3d";
-      this.bgcolor = "#1a2f1f";
+      this.color = "#047857"; // Emerald 700
+      this.bgcolor = "#121212";
+      this.boxcolor = "#10b981"; // Bright border on select
       this.size = [140, 30];
     }
     StartNode.title = "Start";
     LiteGraph.registerNodeType("Dialog/Start", StartNode);
 
-    // ═══════════════════════════════════════════════════
-    // NODE: SAY (NPC talks)
-    // ═══════════════════════════════════════════════════
     function SayNode() {
       this.addInput("→", "flow");
       this.addOutput("→", "flow");
@@ -166,73 +172,69 @@
         (v) => (this.properties.text = v),
       );
       this.title = "💬 SAY";
-      this.color = "#2d4a5a";
-      this.bgcolor = "#1a2a32";
-      this.size = [200, 50];
+      this.color = "#1d4ed8"; // Blue 700
+      this.bgcolor = "#121212";
+      this.boxcolor = "#3b82f6";
+      this.size = [240, 60];
     }
     SayNode.title = "Say";
     LiteGraph.registerNodeType("Dialog/Say", SayNode);
 
-    // ═══════════════════════════════════════════════════
-    // NODE: CHOICE (Player picks, branches out)
-    // ═══════════════════════════════════════════════════
     function ChoiceNode() {
       this.addInput("→", "flow");
-      this.properties = { c1: "Yes", c2: "No", c3: "", c4: "" };
+      this.addOutput("Option 1", "flow");
+      this.addOutput("Option 2", "flow");
+      this.addOutput("Option 3", "flow");
 
-      this.addOutput(this.properties.c1, "flow");
-      this.addOutput(this.properties.c2, "flow");
+      this.properties = {
+        options: ["Yes", "No", "Maybe"],
+        prompt: "Yes, I have it.",
+      };
 
-      const self = this;
-      this.addWidget("text", "①", this.properties.c1, (v) => {
-        self.properties.c1 = v;
-        if (self.outputs[0]) self.outputs[0].name = v || "(empty)";
+      this.addWidget(
+        "text",
+        "Prompt",
+        this.properties.prompt,
+        (v) => (this.properties.prompt = v),
+      );
+      // We'll mimic dynamic widgets if needed, simplistic for now
+      this.addWidget("text", "①", this.properties.options[0] || "", (v) => {
+        this.properties.options[0] = v;
       });
-      this.addWidget("text", "②", this.properties.c2, (v) => {
-        self.properties.c2 = v;
-        if (self.outputs[1]) self.outputs[1].name = v || "(empty)";
+      this.addWidget("text", "②", this.properties.options[1] || "", (v) => {
+        this.properties.options[1] = v;
       });
-      this.addWidget("text", "③", this.properties.c3, (v) => {
-        self.properties.c3 = v;
-        if (v && !self.outputs[2]) self.addOutput(v, "flow");
-        else if (self.outputs[2]) self.outputs[2].name = v || "";
-      });
-      this.addWidget("text", "④", this.properties.c4, (v) => {
-        self.properties.c4 = v;
-        if (v && !self.outputs[3]) self.addOutput(v, "flow");
-        else if (self.outputs[3]) self.outputs[3].name = v || "";
+      this.addWidget("text", "③", this.properties.options[2] || "", (v) => {
+        this.properties.options[2] = v;
       });
 
       this.title = "🔀 CHOICE";
-      this.color = "#5a3d2d";
-      this.bgcolor = "#32251a";
-      this.size = [180, 140];
+      this.color = "#b45309"; // Amber 700 (Darker for white text)
+      this.bgcolor = "#121212";
+      this.boxcolor = "#f59e0b";
+      this.size = [220, 160];
     }
     ChoiceNode.title = "Choice";
     LiteGraph.registerNodeType("Dialog/Choice", ChoiceNode);
 
-    // ═══════════════════════════════════════════════════
-    // NODE: CHECK (Has item/money/energy?)
-    // ═══════════════════════════════════════════════════
     function CheckNode() {
       this.addInput("→", "flow");
-      this.addOutput("✓ Yes", "flow");
-      this.addOutput("✗ No", "flow");
-      this.properties = { type: "item", id: "key", amount: 1 };
+      this.addOutput("True", "flow");
+      this.addOutput("False", "flow");
 
-      const self = this;
+      this.properties = { checkType: "Item", itemId: "key", amount: 1 };
       this.addWidget(
         "combo",
         "Check",
-        this.properties.type,
-        (v) => (self.properties.type = v),
-        { values: ["item", "money", "energy"] },
+        this.properties.checkType,
+        (v) => (this.properties.checkType = v),
+        { values: ["Item", "QuestStatus", "Level"] },
       );
       this.addWidget(
         "text",
         "ID",
-        this.properties.id,
-        (v) => (this.properties.id = v),
+        this.properties.itemId,
+        (v) => (this.properties.itemId = v),
       );
       this.addWidget(
         "number",
@@ -242,34 +244,31 @@
       );
 
       this.title = "❓ CHECK";
-      this.color = "#8f6e28"; // Gold/Yellowish
-      this.bgcolor = "#4a3b15";
-      this.size = [180, 130];
+      this.color = "#6d28d9"; // Violet 700
+      this.bgcolor = "#121212";
+      this.boxcolor = "#8b5cf6";
+      this.size = [200, 140];
     }
     CheckNode.title = "Check";
     LiteGraph.registerNodeType("Dialog/Check", CheckNode);
 
-    // ═══════════════════════════════════════════════════
-    // NODE: GIVE (Give player stuff)
-    // ═══════════════════════════════════════════════════
     function GiveNode() {
       this.addInput("→", "flow");
       this.addOutput("→", "flow");
-      this.properties = { type: "item", id: "coin", amount: 10 };
 
-      const self = this;
+      this.properties = { giveType: "Item", itemId: "coin", amount: 10 };
       this.addWidget(
         "combo",
         "Give",
-        this.properties.type,
-        (v) => (self.properties.type = v),
-        { values: ["item", "money", "energy"] },
+        this.properties.giveType,
+        (v) => (this.properties.giveType = v),
+        { values: ["Item", "Experience", "Quest"] },
       );
       this.addWidget(
         "text",
         "ID",
-        this.properties.id,
-        (v) => (this.properties.id = v),
+        this.properties.itemId,
+        (v) => (this.properties.itemId = v),
       );
       this.addWidget(
         "number",
@@ -279,22 +278,21 @@
       );
 
       this.title = "🎁 GIVE";
-      this.color = "#2d7a4d"; // Green
-      this.bgcolor = "#163a25";
-      this.size = [180, 100];
+      this.color = "#be185d"; // Pink 700
+      this.bgcolor = "#121212";
+      this.boxcolor = "#ec4899";
+      this.size = [200, 120];
     }
     GiveNode.title = "Give";
     LiteGraph.registerNodeType("Dialog/Give", GiveNode);
 
-    // ═══════════════════════════════════════════════════
-    // NODE: END
-    // ═══════════════════════════════════════════════════
     function EndNode() {
       this.addInput("→", "flow");
       this.title = "⬛ END";
-      this.color = "#3d3d3d";
-      this.bgcolor = "#1f1f1f";
-      this.size = [100, 30];
+      this.color = "#b91c1c"; // Red 700
+      this.bgcolor = "#121212";
+      this.boxcolor = "#ef4444";
+      this.size = [120, 30];
     }
     EndNode.title = "End";
     LiteGraph.registerNodeType("Dialog/End", EndNode);
