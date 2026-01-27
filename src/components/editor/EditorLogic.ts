@@ -391,12 +391,19 @@ export function editorLogic() {
 
     // ==================== ENTITY MANAGEMENT ====================
 
-    addEntity(type: "npc" | "portal" | "prop" = "npc") {
+    async addEntity(type: "npc" | "portal" | "prop" = "npc") {
       const entity = this.createDefaultEntity(type);
       this.config.entities.push(entity);
+      const newIndex = this.config.entities.length - 1;
+
+      const lvl = LevelManager.getInstance().getCurrentLevel();
+      if (lvl instanceof Level) {
+        const anims = await lvl.addEntityLive(newIndex, entity);
+        this.currentEntityAnims = anims;
+      }
+
+      this.selectedEntityIdx = newIndex;
       this.markDirty();
-      this.reloadLevelPromise();
-      this.selectedEntityIdx = this.config.entities.length - 1;
     },
 
     createDefaultEntity(type: "npc" | "portal" | "prop"): EntitySpawn {
@@ -429,33 +436,51 @@ export function editorLogic() {
       }
     },
 
-    addProp(assetPath: string) {
-      const entity = this.createDefaultEntity("prop");
-      (entity as any).asset = assetPath;
+    async addProp(assetPath: string) {
+      const entity = this.createDefaultEntity("prop") as PropSpawn;
+      entity.asset = assetPath;
       this.config.entities.push(entity);
-      this.reloadLevelPromise();
-      this.selectedEntityIdx = this.config.entities.length - 1;
+      const newIndex = this.config.entities.length - 1;
+
+      const lvl = LevelManager.getInstance().getCurrentLevel();
+      if (lvl instanceof Level) {
+        await lvl.addEntityLive(newIndex, entity);
+      }
+
+      this.selectedEntityIdx = newIndex;
       this.showAssetModal = false;
+      this.markDirty();
     },
 
     removeEntity(idx: number) {
+      const lvl = LevelManager.getInstance().getCurrentLevel();
+      if (lvl instanceof Level) {
+        lvl.removeEntityLive(idx);
+      }
+
       this.config.entities.splice(idx, 1);
       this.selectedEntityIdx = -1;
       this.currentEntityAnims = [];
       this.markDirty();
-      this.reloadLevelPromise();
     },
 
-    duplicateEntity(idx: number) {
+    async duplicateEntity(idx: number) {
       const entity = this.config.entities[idx];
       if (!entity) return;
 
       const copy = deepClone(entity);
       copy.position[0] += 1;
       this.config.entities.push(copy);
+      const newIndex = this.config.entities.length - 1;
+
+      const lvl = LevelManager.getInstance().getCurrentLevel();
+      if (lvl instanceof Level) {
+        const anims = await lvl.addEntityLive(newIndex, copy);
+        this.currentEntityAnims = anims;
+      }
+
+      this.selectedEntityIdx = newIndex;
       this.markDirty();
-      this.reloadLevelPromise();
-      this.selectedEntityIdx = this.config.entities.length - 1;
     },
 
     selectEntity(idx: number) {
@@ -509,9 +534,15 @@ export function editorLogic() {
         case "asset":
           if (index !== null && this.config.entities[index]) {
             const ent = this.config.entities[index];
-            if (isPropSpawn(ent) || isNPCSpawn(ent)) {
+            if (isPropSpawn(ent)) {
               ent.asset = assetPath;
-              this.reloadLevelPromise();
+              const lvl = LevelManager.getInstance().getCurrentLevel();
+              if (lvl instanceof Level) {
+                await lvl.swapPropModel(index, assetPath);
+              }
+              this.markDirty();
+            } else if (isNPCSpawn(ent)) {
+              await this.swapEntityModel(index, assetPath);
             }
           }
           break;
@@ -534,6 +565,7 @@ export function editorLogic() {
         const anims = await lvl.swapNPCModel(index, assetPath, entity.scale);
         this.currentEntityAnims = anims;
       }
+      this.markDirty();
     },
 
     // ==================== ANIMATIONS ====================
@@ -638,6 +670,7 @@ export function editorLogic() {
         rotation,
         scale,
       );
+      this.markDirty();
     },
 
     forceUpdateEntity(idx: number) {
@@ -708,7 +741,6 @@ export function editorLogic() {
       entity.failDialogue.push({
         speaker: "NPC",
         text: "You don't have what I need...",
-        duration: 3000,
       });
     },
 
@@ -726,7 +758,6 @@ export function editorLogic() {
       entity.successDialogue.push({
         speaker: "NPC",
         text: "Thank you! Here's your reward.",
-        duration: 3000,
       });
     },
 

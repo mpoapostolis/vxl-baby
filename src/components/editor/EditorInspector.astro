@@ -296,6 +296,7 @@
               <input
                 type="text"
                 x-model="config.entities[selectedEntityIdx].name"
+                @input="markDirty()"
                 placeholder="Entity Name"
                 class="w-full bg-transparent text-[15px] font-bold text-[var(--text-main)] placeholder-[var(--text-muted)] border-b border-transparent hover:border-[var(--border-field)] focus:border-[var(--accent-primary)] outline-none transition-all px-0 py-1"
               />
@@ -604,7 +605,7 @@
                   <div class="flex-1 flex gap-1">
                     <select
                       :value="config.entities[selectedEntityIdx]?.animations?.idle || ''"
-                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.idle = $event.target.value"
+                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.idle = $event.target.value; markDirty()"
                       class="blender-input w-full text-[10px]"
                     >
                       <option value="">-- Select --</option>
@@ -633,7 +634,7 @@
                   <div class="flex-1 flex gap-1">
                     <select
                       :value="config.entities[selectedEntityIdx]?.animations?.interact || ''"
-                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.interact = $event.target.value"
+                      @change="if(!config.entities[selectedEntityIdx].animations) config.entities[selectedEntityIdx].animations = {idle:'',interact:''}; config.entities[selectedEntityIdx].animations.interact = $event.target.value; markDirty()"
                       class="blender-input w-full text-[10px]"
                     >
                       <option value="">-- Select --</option>

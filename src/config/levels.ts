@@ -30,7 +30,44 @@ export interface NPCReward {
 export interface DialogueLine {
   speaker: string;
   text: string;
-  duration?: number;
+}
+
+// Quest Graph Types (LiteGraph format)
+export interface QuestGraphLink {
+  0: number; // link id
+  1: number; // origin node id
+  2: number; // origin slot index
+  3: number; // target node id
+  4: number; // target slot index
+  5?: string; // type
+}
+
+export interface QuestGraphNodeOutput {
+  name: string;
+  type?: string;
+  links?: number[];
+}
+
+export interface QuestGraphNodeInput {
+  name: string;
+  type?: string;
+  link?: number;
+}
+
+export interface QuestGraphNode {
+  id: number;
+  type: string;
+  pos?: [number, number];
+  size?: [number, number];
+  properties?: Record<string, unknown>;
+  widgets_values?: unknown[];
+  inputs?: QuestGraphNodeInput[];
+  outputs?: QuestGraphNodeOutput[];
+}
+
+export interface QuestGraph {
+  nodes: QuestGraphNode[];
+  links: QuestGraphLink[];
 }
 
 export interface NPCSpawn {
@@ -49,7 +86,7 @@ export interface NPCSpawn {
     idle?: string;
     interact?: string;
   };
-  questGraph?: Record<string, any>;
+  questGraph?: QuestGraph;
 }
 
 export interface PortalSpawn {

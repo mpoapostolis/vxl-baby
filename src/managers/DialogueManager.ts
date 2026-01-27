@@ -1,34 +1,35 @@
 /**
  * DialogueManager - Singleton for managing in-game dialogue
- * Optimized: rAF-based typewriter, efficient DOM updates, proper cleanup
+ * Features: rAF-based typewriter, speaker theming, choice support
  */
 
 import { AudioManager } from "./AudioManager";
 
+// ==================== TYPES ====================
+
 export interface DialogueChoice {
   text: string;
-  value: any;
+  value: number;
 }
 
 export interface DialogueLine {
   speaker?: string;
   text: string;
   choices?: DialogueChoice[];
-  // duration is deprecated/ignored for text lines, but kept for compatibility
-  duration?: number;
 }
 
 export interface Dialogue {
   id: string;
   lines: DialogueLine[];
-  onChoice?: (value: any) => void;
+  onChoice?: (value: number) => void;
   onComplete?: () => void;
 }
 
 type Theme = "default" | "demon" | "wife";
 
+// ==================== CONSTANTS ====================
+
 const CHARS_PER_SECOND = 20;
-const DEFAULT_LINE_DURATION_MS = 3000;
 const TYPING_SOUND_INTERVAL = 3;
 
 const THEME_CLASSES: Record<Theme, string> = {
@@ -37,25 +38,32 @@ const THEME_CLASSES: Record<Theme, string> = {
   wife: "theme-wife",
 };
 
+// ==================== DIALOGUE MANAGER ====================
+
 export class DialogueManager {
   private static instance: DialogueManager;
 
   private readonly dialogues = new Map<string, Dialogue>();
   private readonly audio = AudioManager.getInstance();
 
+  // UI Elements (cached for performance)
   private overlay: HTMLElement | null = null;
   private textEl: HTMLElement | null = null;
   private speakerEl: HTMLElement | null = null;
+  private hintEl: HTMLElement | null = null;
+  private choicesEl: HTMLElement | null = null;
 
+  // State
   private current?: Dialogue;
   private lineIndex = 0;
   private active = false;
   private isTyping = false;
   private waitingForInput = false;
+  private fullText = "";
 
+  // Animation
   private rafId: number | null = null;
-  private inputListener: ((e: KeyboardEvent | MouseEvent) => void) | null =
-    null;
+  private inputListener: ((e: KeyboardEvent | MouseEvent) => void) | null = null;
 
   private constructor() {
     this.createUI();
@@ -65,15 +73,20 @@ export class DialogueManager {
     return (DialogueManager.instance ??= new DialogueManager());
   }
 
+  // ==================== PUBLIC API ====================
+
   register(dialogue: Dialogue): void {
     this.dialogues.set(dialogue.id, dialogue);
   }
 
   play(id: string): void {
     const dialogue = this.dialogues.get(id);
-    if (!dialogue) return;
+    if (!dialogue) {
+      console.warn(`[Dialogue] Not found: ${id}`);
+      return;
+    }
 
-    this.clearTimers();
+    this.cleanup();
     this.current = dialogue;
     this.lineIndex = 0;
     this.active = true;
@@ -93,6 +106,8 @@ export class DialogueManager {
     return this.active;
   }
 
+  // ==================== LINE MANAGEMENT ====================
+
   private nextLine(): void {
     if (!this.current || this.lineIndex >= this.current.lines.length) {
       this.end();
@@ -108,60 +123,16 @@ export class DialogueManager {
     this.typeText(line);
   }
 
-  private handleInput(e: KeyboardEvent | MouseEvent): void {
-    if (!this.active) return;
-
-    // Ignore clicks on choices (handled by buttons)
-    if (e.target instanceof HTMLElement && e.target.closest("button")) return;
-
-    if (e instanceof KeyboardEvent && e.code !== "Space" && e.code !== "Enter")
-      return;
-
-    if (this.isTyping) {
-      // Instant finish typing
-      this.finishTyping();
-    } else if (this.waitingForInput) {
-      // Advance to next line
-      this.lineIndex++;
-      this.nextLine();
-    }
-  }
-
-  private setupInputListener(): void {
-    if (this.inputListener) return;
-    this.inputListener = (e) => this.handleInput(e);
-    window.addEventListener("keydown", this.inputListener);
-    window.addEventListener("click", this.inputListener);
-  }
-
-  private cleanup(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-    if (this.inputListener) {
-      window.removeEventListener("keydown", this.inputListener);
-      window.removeEventListener("click", this.inputListener);
-      this.inputListener = null;
-    }
-    // Remove choices if any
-    const choicesEl = this.overlay?.querySelector("#dialogue-choices");
-    if (choicesEl) choicesEl.remove();
-  }
-
   private typeText(line: DialogueLine): void {
     if (!this.textEl) return;
 
     this.textEl.textContent = "";
     this.isTyping = true;
     this.waitingForInput = false;
-    this.updateHint(false); // Hide hint while typing
+    this.fullText = line.text;
+    this.updateHint(false);
+    this.clearChoices();
 
-    // Clear previous choices
-    const oldChoices = this.overlay?.querySelector("#dialogue-choices");
-    if (oldChoices) oldChoices.remove();
-
-    const text = line.text;
     let charIndex = 0;
     let lastTime = performance.now();
     let soundCounter = 0;
@@ -172,8 +143,8 @@ export class DialogueManager {
 
       if (charsToAdd > 0) {
         lastTime = now;
-        charIndex = Math.min(charIndex + charsToAdd, text.length);
-        this.textEl!.textContent = text.slice(0, charIndex);
+        charIndex = Math.min(charIndex + charsToAdd, this.fullText.length);
+        this.textEl!.textContent = this.fullText.slice(0, charIndex);
 
         soundCounter += charsToAdd;
         if (soundCounter >= TYPING_SOUND_INTERVAL) {
@@ -182,10 +153,10 @@ export class DialogueManager {
         }
       }
 
-      if (charIndex < text.length) {
+      if (charIndex < this.fullText.length) {
         this.rafId = requestAnimationFrame(animate);
       } else {
-        this.finishTyping();
+        this.finishTyping(line);
       }
     };
 
@@ -193,22 +164,21 @@ export class DialogueManager {
     this.rafId = requestAnimationFrame(animate);
   }
 
-  private finishTyping(): void {
+  private finishTyping(line?: DialogueLine): void {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
 
     if (!this.current) return;
-    const line = this.current.lines[this.lineIndex];
 
-    if (this.textEl) this.textEl.textContent = line.text;
+    const currentLine = line ?? this.current.lines[this.lineIndex];
+    if (this.textEl) this.textEl.textContent = currentLine.text;
     this.isTyping = false;
 
-    // Check for choices
-    if (line.choices && line.choices.length > 0) {
-      this.showChoices(line.choices);
-      this.waitingForInput = false; // Input logic moves to choices
+    if (currentLine.choices?.length) {
+      this.showChoices(currentLine.choices);
+      this.waitingForInput = false;
       this.updateHint(false);
     } else {
       this.waitingForInput = true;
@@ -216,15 +186,52 @@ export class DialogueManager {
     }
   }
 
+  // ==================== INPUT HANDLING ====================
+
+  private handleInput(e: KeyboardEvent | MouseEvent): void {
+    if (!this.active) return;
+
+    // Ignore clicks on choice buttons
+    if (e.target instanceof HTMLElement && e.target.closest("button")) return;
+
+    if (e instanceof KeyboardEvent && e.code !== "Space" && e.code !== "Enter") return;
+
+    if (this.isTyping) {
+      this.finishTyping();
+    } else if (this.waitingForInput) {
+      this.lineIndex++;
+      this.nextLine();
+    }
+  }
+
+  private setupInputListener(): void {
+    if (this.inputListener) return;
+
+    this.inputListener = (e) => this.handleInput(e);
+    window.addEventListener("keydown", this.inputListener);
+    window.addEventListener("click", this.inputListener);
+  }
+
+  private removeInputListener(): void {
+    if (this.inputListener) {
+      window.removeEventListener("keydown", this.inputListener);
+      window.removeEventListener("click", this.inputListener);
+      this.inputListener = null;
+    }
+  }
+
+  // ==================== CHOICES ====================
+
   private showChoices(choices: DialogueChoice[]): void {
     if (!this.overlay) return;
 
-    const choicesContainer = document.createElement("div");
-    choicesContainer.id = "dialogue-choices";
-    choicesContainer.className =
-      "flex flex-wrap justify-center gap-3 mt-4 w-full animate-fade-in";
+    this.clearChoices();
 
-    choices.forEach((choice, idx) => {
+    const container = document.createElement("div");
+    container.id = "dialogue-choices";
+    container.className = "flex flex-wrap justify-center gap-3 mt-4 w-full animate-fade-in";
+
+    for (const choice of choices) {
       const btn = document.createElement("button");
       btn.textContent = choice.text;
       btn.className = `
@@ -235,49 +242,37 @@ export class DialogueManager {
 
       btn.onclick = (e) => {
         e.stopPropagation();
-        this.handleChoice(choice.value);
+        this.handleChoiceSelection(choice.value);
       };
 
-      choicesContainer.appendChild(btn);
-    });
+      container.appendChild(btn);
+    }
 
-    this.overlay.appendChild(choicesContainer);
+    this.choicesEl = container;
+    this.overlay.appendChild(container);
   }
 
-  private handleChoice(value: any): void {
+  private handleChoiceSelection(value: number): void {
     if (this.current?.onChoice) {
       this.current.onChoice(value);
     }
-    // After choice, we usually advance or close.
-    // For now, let's assume we advance to next line or close if done.
     this.lineIndex++;
     this.nextLine();
   }
 
+  private clearChoices(): void {
+    if (this.choicesEl) {
+      this.choicesEl.remove();
+      this.choicesEl = null;
+    }
+  }
+
+  // ==================== UI UPDATES ====================
+
   private updateHint(show: boolean): void {
-    const hint = this.overlay?.querySelector("#dialogue-hint");
-    if (hint) {
-      if (show) hint.classList.remove("opacity-0");
-      else hint.classList.add("opacity-0");
+    if (this.hintEl) {
+      this.hintEl.classList.toggle("opacity-0", !show);
     }
-  }
-
-  private clearTimers(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
-  }
-
-  private end(): void {
-    if (this.current?.onComplete) {
-      this.current.onComplete();
-    }
-    this.cleanup();
-    this.active = false;
-    this.current = undefined;
-    this.lineIndex = 0;
-    this.hide();
   }
 
   private setSpeaker(name: string): void {
@@ -309,6 +304,33 @@ export class DialogueManager {
     this.overlay?.classList.add("opacity-0", "translate-y-8", "scale-95");
   }
 
+  // ==================== LIFECYCLE ====================
+
+  private cleanup(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    this.removeInputListener();
+    this.clearChoices();
+  }
+
+  private end(): void {
+    if (this.current?.onComplete) {
+      this.current.onComplete();
+    }
+
+    this.cleanup();
+    this.active = false;
+    this.current = undefined;
+    this.lineIndex = 0;
+    this.isTyping = false;
+    this.waitingForInput = false;
+    this.hide();
+  }
+
+  // ==================== UI CREATION ====================
+
   private createUI(): void {
     if (typeof document === "undefined") return;
 
@@ -321,60 +343,45 @@ export class DialogueManager {
       transition-all duration-500 ease-out z-50
     `.trim();
 
-    // Header with Speaker Badge
+    // Header
     const header = document.createElement("div");
     header.className = "flex items-center gap-3";
-    this.overlay.appendChild(header);
 
-    // Speaker Icon/Badge placeholder (optional, can be expanded)
     const speakerBadge = document.createElement("div");
-    speakerBadge.className =
-      "w-2 h-8 rounded-full bg-gradient-to-b from-[var(--accent-primary)] to-[var(--accent-secondary)]";
-    // We can color this dynamically based on speaker if needed, for now it's a generic accent
+    speakerBadge.className = "w-2 h-8 rounded-full bg-gradient-to-b from-[var(--accent-primary)] to-[var(--accent-secondary)]";
     speakerBadge.id = "speaker-accent";
-    header.appendChild(speakerBadge);
 
     this.speakerEl = document.createElement("span");
     this.speakerEl.id = "speaker-label";
-    this.speakerEl.className =
-      "text-xs font-bold uppercase tracking-widest text-white/50 font-sans";
+    this.speakerEl.className = "text-xs font-bold uppercase tracking-widest text-white/50 font-sans";
     this.speakerEl.textContent = "UNKNOWN";
-    header.appendChild(this.speakerEl);
 
-    // Dialogue Text
+    header.appendChild(speakerBadge);
+    header.appendChild(this.speakerEl);
+    this.overlay.appendChild(header);
+
+    // Text
     this.textEl = document.createElement("p");
-    this.textEl.className =
-      "text-lg md:text-xl font-sans font-medium leading-relaxed text-white/90 drop-shadow-sm min-h-[3rem]";
+    this.textEl.className = "text-lg md:text-xl font-sans font-medium leading-relaxed text-white/90 drop-shadow-sm min-h-[3rem]";
     this.overlay.appendChild(this.textEl);
 
-    // Hint / Continue indicator
-    const hint = document.createElement("div");
-    hint.id = "dialogue-hint";
-    hint.className =
-      "absolute bottom-4 right-6 text-[10px] text-white/30 font-sans uppercase tracking-widest animate-pulse transition-opacity duration-300 opacity-0";
-    hint.textContent = "Press Space ▶";
-    this.overlay.appendChild(hint);
+    // Hint
+    this.hintEl = document.createElement("div");
+    this.hintEl.id = "dialogue-hint";
+    this.hintEl.className = "absolute bottom-4 right-6 text-[10px] text-white/30 font-sans uppercase tracking-widest animate-pulse transition-opacity duration-300 opacity-0";
+    this.hintEl.textContent = "Press Space";
+    this.overlay.appendChild(this.hintEl);
 
     this.injectStyles();
     document.body.appendChild(this.overlay);
   }
 
   private injectStyles(): void {
-    const style = document.createElement("style");
-    style.textContent = `
-      @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-      
-      .cursor::after {
-        content: '';
-        display: inline-block;
-        width: 2px;
-        height: 1.2em;
-        background: currentColor;
-        margin-left: 2px;
-        vertical-align: middle;
-        animation: blink 1s step-end infinite;
-      }
+    if (document.getElementById("dialogue-styles")) return;
 
+    const style = document.createElement("style");
+    style.id = "dialogue-styles";
+    style.textContent = `
       /* Demon Theme */
       .theme-demon {
         background-color: rgba(20, 0, 0, 0.85) !important;
@@ -407,6 +414,14 @@ export class DialogueManager {
       }
       .theme-wife p {
         color: #ecfeff !important;
+      }
+
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.3s ease-out;
       }
     `;
     document.head.appendChild(style);
