@@ -19,9 +19,6 @@ import type {
   NPCSpawn,
   PortalSpawn,
   PropSpawn,
-  QuestGraph,
-  QuestGraphNode,
-  QuestGraphLink,
 } from "../config/levels";
 import { NPC } from "../entities/NPC";
 import type { Portal } from "../entities/Portal";
@@ -364,7 +361,7 @@ export class Level extends BaseLevel {
     if (!this.player) return;
 
     const dialogueManager = DialogueManager.getInstance();
-    if (dialogueManager.isActive()) return;
+    if (dialogueManager.isDialoguePlaying()) return;
 
     for (let i = 0; i < this.levelConfig.entities.length; i++) {
       const spawn = this.levelConfig.entities[i];
@@ -392,7 +389,7 @@ export class Level extends BaseLevel {
   private checkInteractionState(): void {
     if (this.currentInteractingNPC === null) return;
 
-    if (!DialogueManager.getInstance().isActive()) {
+    if (!DialogueManager.getInstance().isDialoguePlaying()) {
       // Interaction ended, restore idle
       const npc = this.npcs.get(this.currentInteractingNPC);
       const spawn = this.levelConfig.entities[this.currentInteractingNPC];
@@ -424,17 +421,14 @@ export class Level extends BaseLevel {
       }
     }
 
-    // Priority 1: Quest Graph
-    if (spawn.questGraph) {
-      this.executeQuestGraph(spawn.questGraph, spawn.name || "NPC", () => {
-        // Return NPC to idle when graph completes
+    // Priority 1: Custom Script
+    if (spawn.scriptSource) {
+      dialogueManager.startScript(spawn.scriptSource, () => {
         const npc = this.npcs.get(index);
         if (npc) {
           npc.playAnimation(spawn.animations?.idle || "idle", true);
         }
         this.currentInteractingNPC = null;
-        // Don't delete from npcDialogueTriggered here - let checkNPCProximity
-        // handle it when player leaves radius to prevent immediate re-trigger
       });
       return;
     }
@@ -550,214 +544,6 @@ export class Level extends BaseLevel {
         this.camera.rotation.y += (Math.random() - 0.5) * effect.intensity;
         break;
     }
-  }
-
-  // ==========================================================================
-  // QUEST GRAPH EXECUTION
-  // ==========================================================================
-
-  private executeQuestGraph(
-    graph: QuestGraph,
-    speakerName: string,
-    onComplete?: () => void,
-  ): void {
-    if (!graph.nodes?.length) {
-      onComplete?.();
-      return;
-    }
-
-    const dialogueManager = DialogueManager.getInstance();
-    const linkMap = this.parseQuestLinks(graph.links ?? []);
-
-    const getNode = (id: number): QuestGraphNode | undefined =>
-      graph.nodes.find((n) => n.id === id);
-
-    const getNextNode = (
-      node: QuestGraphNode,
-      slotIndex = 0,
-    ): QuestGraphNode | null => {
-      const output = node.outputs?.[slotIndex];
-      if (!output?.links?.length) return null;
-      const link = linkMap.get(output.links[0]);
-      return link ? (getNode(link.to) ?? null) : null;
-    };
-
-    const runStep = (nodeId: number): void => {
-      const node = getNode(nodeId);
-      if (!node) {
-        onComplete?.();
-        return;
-      }
-
-      switch (node.type) {
-        case "Dialog/Start": {
-          const next = getNextNode(node);
-          if (next) runStep(next.id);
-          else onComplete?.();
-          break;
-        }
-
-        case "Dialog/Say": {
-          const lines = this.collectSayNodes(node, getNextNode, speakerName);
-          const lastNode = this.findLastSayNode(node, getNextNode);
-          const nextNode = lastNode ? getNextNode(lastNode) : null;
-          const dialogueId = `quest_say_${Date.now()}_${nodeId}`;
-
-          dialogueManager.register({
-            id: dialogueId,
-            lines,
-            onComplete: () => {
-              if (nextNode) {
-                runStep(nextNode.id);
-              } else {
-                onComplete?.();
-              }
-            },
-          });
-          dialogueManager.play(dialogueId);
-          break;
-        }
-
-        case "Dialog/Choice": {
-          this.handleChoiceNode(
-            node,
-            nodeId,
-            speakerName,
-            getNextNode,
-            runStep,
-            onComplete,
-          );
-          break;
-        }
-
-        case "Dialog/Check": {
-          const props = node.properties as { checkType?: string } | undefined;
-          const result = props?.checkType === "Level" || Math.random() > 0.1;
-          const next = getNextNode(node, result ? 0 : 1);
-          if (next) runStep(next.id);
-          else onComplete?.();
-          break;
-        }
-
-        case "Dialog/Give": {
-          const props = node.properties as
-            | { giveType?: string; amount?: number }
-            | undefined;
-          console.log(`[Quest] Give: ${props?.giveType} x${props?.amount}`);
-          const next = getNextNode(node);
-          if (next) runStep(next.id);
-          else onComplete?.();
-          break;
-        }
-
-        case "Dialog/End":
-          dialogueManager.stop();
-          onComplete?.();
-          break;
-      }
-    };
-
-    const startNode = graph.nodes.find((n) => n.type === "Dialog/Start");
-    if (startNode) runStep(startNode.id);
-    else onComplete?.();
-  }
-
-  private parseQuestLinks(links: QuestGraphLink[]): Map<number, ParsedLink> {
-    const map = new Map<number, ParsedLink>();
-    for (const link of links) {
-      if (Array.isArray(link) && link.length >= 4) {
-        map.set(link[0], { from: link[1], to: link[3], slot: link[2] });
-      }
-    }
-    return map;
-  }
-
-  private collectSayNodes(
-    startNode: QuestGraphNode,
-    getNextNode: (node: QuestGraphNode, slot?: number) => QuestGraphNode | null,
-    speakerName: string,
-  ): { speaker: string; text: string }[] {
-    const lines: { speaker: string; text: string }[] = [];
-    let current: QuestGraphNode | null = startNode;
-
-    while (current?.type === "Dialog/Say") {
-      const text = String(
-        current.widgets_values?.[0] ?? current.properties?.text ?? "",
-      );
-      lines.push({ speaker: speakerName, text });
-
-      const next = getNextNode(current);
-      current = next?.type === "Dialog/Say" ? next : null;
-    }
-
-    return lines;
-  }
-
-  private findLastSayNode(
-    startNode: QuestGraphNode,
-    getNextNode: (node: QuestGraphNode, slot?: number) => QuestGraphNode | null,
-  ): QuestGraphNode {
-    let current = startNode;
-    let next = getNextNode(current);
-
-    while (next?.type === "Dialog/Say") {
-      current = next;
-      next = getNextNode(current);
-    }
-
-    return current;
-  }
-
-  private handleChoiceNode(
-    node: QuestGraphNode,
-    nodeId: number,
-    speakerName: string,
-    getNextNode: (node: QuestGraphNode, slot?: number) => QuestGraphNode | null,
-    runStep: (id: number) => void,
-    onComplete?: () => void,
-  ): void {
-    const dialogueManager = DialogueManager.getInstance();
-    const props = node.properties as
-      | { prompt?: string; options?: string[] }
-      | undefined;
-    const wv = node.widgets_values as string[] | undefined;
-
-    // Widget order: [0]=prompt, [1]=option1, [2]=option2, [3]=option3
-    const prompt = wv?.[0] ?? props?.prompt ?? "Choose...";
-    const rawOptions: string[] = wv
-      ? [wv[1] ?? "", wv[2] ?? "", wv[3] ?? ""]
-      : props?.options ?? ["Yes", "No"];
-
-    // Build choices, preserving slot indices for non-empty options
-    const choices = rawOptions
-      .map((opt, idx) => ({
-        text: opt,
-        value: idx,
-      }))
-      .filter((c) => c.text && c.text.trim() !== "");
-
-    // Fallback: if no valid choices, try to follow first connected output
-    if (choices.length === 0) {
-      const next = getNextNode(node, 0);
-      if (next) runStep(next.id);
-      else onComplete?.();
-      return;
-    }
-
-    const dialogueId = `quest_choice_${Date.now()}_${nodeId}`;
-    dialogueManager.register({
-      id: dialogueId,
-      lines: [{ speaker: speakerName, text: prompt, choices }],
-      onChoice: (slotIndex: number) => {
-        const next = getNextNode(node, slotIndex);
-        if (next) runStep(next.id);
-        else {
-          dialogueManager.stop();
-          onComplete?.();
-        }
-      },
-    });
-    dialogueManager.play(dialogueId);
   }
 
   // ==========================================================================

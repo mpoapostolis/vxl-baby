@@ -19,7 +19,7 @@
     "alpinejs": "^3.15.5",
     "astro": "^5.16.15",
     "biome": "^0.3.3",
-    "litegraph.js": "^0.7.18",
+    "monaco-editor": "^0.55.1",
     "tailwindcss": "^4.1.18"
   }
 }

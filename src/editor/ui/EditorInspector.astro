@@ -665,18 +665,18 @@
     <!-- NPC Dialogue Editor -->
 
     <template
-      x-if="['npc', 'prop'].includes(config.entities[selectedEntityIdx].type)"
+      x-if="selectedEntityIdx !== -1 && config.entities[selectedEntityIdx] && ['npc', 'prop'].includes(config.entities[selectedEntityIdx].type)"
     >
       <div class="space-y-2 pt-2 border-t border-[var(--border-light)] px-2">
-        <!-- Quest Graph Editor -->
+        <!-- Script Editor -->
         <template x-if="config.entities[selectedEntityIdx].type === 'npc'">
           <div class="mb-2">
             <button
-              @click="openQuestEditor(selectedEntityIdx)"
-              class="w-full py-2 text-[var(--accent-primary)]/80 border-[var(--accent-primary)]/30 font-bold text-[10px] rounded transition-colors flex items-center justify-center gap-2 uppercase tracking-wide border"
+              @click="openScriptEditor(selectedEntityIdx)"
+              class="w-full py-2 text-green-500 border-green-500/30 font-bold text-[10px] rounded transition-colors flex items-center justify-center gap-2 uppercase tracking-wide border hover:bg-green-500/10"
             >
-              <span>🕸️</span>
-              <span>Edit Quest Flow</span>
+              <span>📜</span>
+              <span>Edit Script</span>
             </button>
           </div>
         </template>
@@ -684,7 +684,9 @@
     </template>
   </div>
 
-  <template x-if="config.entities[selectedEntityIdx].type === 'prop'">
+  <template
+    x-if="selectedEntityIdx !== -1 && config.entities[selectedEntityIdx] && config.entities[selectedEntityIdx].type === 'prop'"
+  >
     <div class="prop-group mt-1">
       <div class="prop-group-header flex justify-between">
         <span>PHYSICS</span>

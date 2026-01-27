@@ -21,6 +21,8 @@ import { AssetManager } from "../../core/AssetManager";
 import { InputManager } from "../../core/InputManager";
 import { getHavokPlugin } from "../../core/physics";
 import { type LevelConfig, DEFAULT_CONFIG } from "../config/levels";
+import { DialogueManager } from "../managers/DialogueManager";
+import { ANIMATIONS } from "../utils/hero_anim";
 
 // ============================================================================
 // CONFIGURATION
@@ -84,7 +86,13 @@ export abstract class BaseLevel {
   }
 
   public update(): void {
-    this.player?.update();
+    // Don't move player while dialogue is active - stop and play idle
+    if (DialogueManager.getInstance().isDialoguePlaying()) {
+      this.player?.stopMovement();
+      this.player?.playAnimation(ANIMATIONS.Idle_Neutral);
+    } else {
+      this.player?.update();
+    }
     this.onUpdate();
   }
 

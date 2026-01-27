@@ -131,6 +131,13 @@ export class Player {
     this.physicsEnabled = false;
   }
 
+  stopMovement(): void {
+    if (this.physicsAggregate) {
+      const currentY = this.physicsAggregate.body.getLinearVelocity().y;
+      this.physicsAggregate.body.setLinearVelocity(new Vector3(0, currentY, 0));
+    }
+  }
+
   dispose(): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
@@ -275,7 +282,7 @@ export class Player {
     return ANIMATIONS.Run;
   }
 
-  private playAnimation(name: string): void {
+  public playAnimation(name: string): void {
     if (this.currentAnimation === name) return;
 
     const animation = this.animations.get(name);

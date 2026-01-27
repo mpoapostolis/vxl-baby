@@ -13,6 +13,14 @@ import {
 import { ENTITIES } from "../../game/config/entities";
 import type { Vector3 } from "@babylonjs/core";
 
+// Global Window Extensions for Editor Integration
+declare global {
+  interface Window {
+    openScriptEditor: (entityId: number) => void;
+    getEditorEntity: (id: number) => any;
+  }
+}
+
 // Type guards for entity discrimination
 function isNPCSpawn(entity: EntitySpawn): entity is NPCSpawn {
   return entity.type === "npc";
@@ -46,7 +54,6 @@ interface EditorState {
   showAssetModal: boolean;
   showLevelModal: boolean;
   showNewLevelModal: boolean;
-  showQuestEditor: boolean;
   newLevelName: string;
   searchQuery: string;
   outlinerSearch: string;
@@ -159,7 +166,6 @@ export function editorLogic() {
     showAssetModal: false,
     showLevelModal: false,
     showNewLevelModal: false,
-    showQuestEditor: false,
     newLevelName: "",
     searchQuery: "",
     outlinerSearch: "",
@@ -225,6 +231,24 @@ export function editorLogic() {
 
       this.loadLevel(this.currentLevelId);
       this.setupKeyboardShortcuts();
+
+      // Expose helper for ScriptEditor
+      window.getEditorEntity = (idx: number) => {
+        return this.config.entities[idx];
+      };
+
+      // Dictionary Script Integration
+      window.addEventListener("save-script", ((e: CustomEvent) => {
+        const { id, script } = e.detail;
+        if (this.config.entities[id]) {
+          const ent = this.config.entities[id];
+          if (isNPCSpawn(ent)) {
+            ent.scriptSource = script;
+            this.markDirty();
+            console.log("[EditorLogic] Saved Script for Entity", id);
+          }
+        }
+      }) as EventListener);
     },
 
     setupKeyboardShortcuts() {
@@ -795,40 +819,6 @@ export function editorLogic() {
       const entity = this.config.entities[entIdx];
       if (isNPCSpawn(entity)) {
         entity.successDialogue?.splice(diagIdx, 1);
-      }
-    },
-
-    // ==================== QUEST EDITOR ====================
-
-    openQuestEditor(idx: number) {
-      this.selectedEntityIdx = idx;
-      this.showQuestEditor = true;
-    },
-
-    closeQuestEditor() {
-      this.showQuestEditor = false;
-    },
-
-    saveQuestGraph(data: any) {
-      if (this.selectedEntityIdx === -1) {
-        console.error("[EditorLogic] Cannot save graph: No entity selected");
-        return;
-      }
-
-      const entity = this.config.entities[this.selectedEntityIdx];
-      if (entity && isNPCSpawn(entity)) {
-        console.log("Saved Quest Graph for NPC:", entity.name, data);
-
-        // Force reactivity by creating a new object ref
-        this.config.entities[this.selectedEntityIdx] = {
-          ...entity,
-          questGraph: data,
-        };
-
-        // Save immediately (don't wait for auto-save)
-        this.saveCurrentLevel();
-      } else {
-        console.error("[EditorLogic] Selected entity is not an NPC:", entity);
       }
     },
 

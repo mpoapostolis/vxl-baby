@@ -4,6 +4,7 @@
  */
 
 import { AudioManager } from "./AudioManager";
+import { ScriptManager } from "./ScriptManager";
 
 // ==================== TYPES ====================
 
@@ -60,6 +61,10 @@ export class DialogueManager {
   private isTyping = false;
   private waitingForInput = false;
   private fullText = "";
+  private isScriptMode = false;
+  private scriptOnComplete?: () => void;
+  private currentChoiceTargets: string[] = [];
+  private currentLine: DialogueLine | null = null;
 
   // Animation
   private rafId: number | null = null;
@@ -106,11 +111,70 @@ export class DialogueManager {
     this.lineIndex = 0;
     this.isTyping = false;
     this.waitingForInput = false;
+    this.isScriptMode = false;
+    this.currentLine = null;
+    this.currentChoiceTargets = [];
+    this.scriptOnComplete = undefined;
     this.hide();
   }
-
-  isActive(): boolean {
+  isDialoguePlaying(): boolean {
+    // @ts-ignore
     return this.active;
+  }
+
+  startScript(source: string, onComplete?: () => void): void {
+    this.cleanup();
+    this.isScriptMode = true;
+    this.active = true;
+    this.scriptOnComplete = onComplete;
+
+    const sm = ScriptManager.getInstance();
+    sm.load(source);
+    sm.start();
+
+    this.show();
+    this.advanceScript();
+  }
+
+  private advanceScript() {
+    const sm = ScriptManager.getInstance();
+    const line = sm.next();
+
+    if (!line) {
+      this.end();
+      return;
+    }
+
+    if (line.type === "say") {
+      this.setSpeaker(line.speaker);
+      this.applyTheme(line.speaker);
+      this.typeText({ text: line.text });
+    } else if (line.type === "choice") {
+      // Show choices
+      // For choice lines, we might not have 'text' to say first.
+      // Usually choices follow a say line.
+      // If we hit a choice block immediately, we might need a prompt.
+      // For now, assume choices are just buttons.
+      const options = line.options.map((opt, idx) => ({
+        text: opt.text,
+        value: idx, // We'll store the index to look up target later?
+        // No, DialogueManager passes number back.
+        // We need to know THE TARGET.
+        // But DialogueManager only handles simple value return.
+        // Let's store the targets temporarily in ScriptManager or here.
+        // We'll pass the TARGET STRING as the value if we assume value is any?
+        // DialogueChoice.value is number.
+        // So we need to map index -> target in ScriptManager or local state.
+      }));
+
+      // We need to persist these targets to know where to jump
+      this.currentChoiceTargets = line.options.map((o) => o.target);
+
+      this.typeText({
+        text: line.prompt || "...",
+        choices: options,
+      });
+    }
   }
 
   // ==================== LINE MANAGEMENT ====================
@@ -133,6 +197,7 @@ export class DialogueManager {
   private typeText(line: DialogueLine): void {
     if (!this.textEl) return;
 
+    this.currentLine = line; // Store for finishTyping in script mode
     this.textEl.textContent = "";
     this.isTyping = true;
     this.waitingForInput = false;
@@ -141,15 +206,18 @@ export class DialogueManager {
     this.clearChoices();
 
     let charIndex = 0;
+    let charAccumulator = 0;
     let lastTime = performance.now();
     let soundCounter = 0;
 
     const animate = (now: number) => {
       const delta = now - lastTime;
-      const charsToAdd = Math.floor((delta / 1000) * CHARS_PER_SECOND);
+      lastTime = now;
+      charAccumulator += (delta / 1000) * CHARS_PER_SECOND;
 
+      const charsToAdd = Math.floor(charAccumulator);
       if (charsToAdd > 0) {
-        lastTime = now;
+        charAccumulator -= charsToAdd;
         charIndex = Math.min(charIndex + charsToAdd, this.fullText.length);
         this.textEl!.textContent = this.fullText.slice(0, charIndex);
 
@@ -177,14 +245,15 @@ export class DialogueManager {
       this.rafId = null;
     }
 
-    if (!this.current) return;
+    // Use passed line, stored currentLine, or fall back to dialogue lines
+    const activeLine = line ?? this.currentLine ?? this.current?.lines[this.lineIndex];
+    if (!activeLine) return;
 
-    const currentLine = line ?? this.current.lines[this.lineIndex];
-    if (this.textEl) this.textEl.textContent = currentLine.text;
+    if (this.textEl) this.textEl.textContent = activeLine.text;
     this.isTyping = false;
 
-    if (currentLine.choices?.length) {
-      this.showChoices(currentLine.choices);
+    if (activeLine.choices?.length) {
+      this.showChoices(activeLine.choices);
       this.waitingForInput = false;
       this.updateHint(false);
     } else {
@@ -198,17 +267,27 @@ export class DialogueManager {
   private handleInput(e: KeyboardEvent | MouseEvent): void {
     if (!this.active) return;
 
-    // Ignore clicks on choice buttons
+    // Ignore clicks on choice buttons (they have their own handlers)
     if (e.target instanceof HTMLElement && e.target.closest("button")) return;
 
-    if (e instanceof KeyboardEvent && e.code !== "Space" && e.code !== "Enter")
-      return;
+    // Only handle Space and Enter for keyboard
+    if (e instanceof KeyboardEvent) {
+      if (e.code !== "Space" && e.code !== "Enter") return;
+      e.preventDefault();
+    }
 
     if (this.isTyping) {
       this.finishTyping();
-    } else if (this.waitingForInput) {
-      this.lineIndex++;
-      this.nextLine();
+      return;
+    }
+
+    if (this.waitingForInput) {
+      if (this.isScriptMode) {
+        this.advanceScript();
+      } else {
+        this.lineIndex++;
+        this.nextLine();
+      }
     }
   }
 
@@ -262,6 +341,16 @@ export class DialogueManager {
   }
 
   private handleChoiceSelection(value: number): void {
+    if (this.isScriptMode) {
+      // value is index
+      const target = this.currentChoiceTargets[value];
+      if (target) {
+        ScriptManager.getInstance().jumpTo(target);
+        this.advanceScript();
+      }
+      return;
+    }
+
     const previousId = this.current?.id;
 
     if (this.current?.onChoice) {
@@ -338,7 +427,11 @@ export class DialogueManager {
       "pointer-events-none",
     );
 
-    // Safety: ensure it's not clickable
+    // Re-focus canvas so player can move with WASD
+    const canvas = document.querySelector("canvas");
+    if (canvas) {
+      (canvas as HTMLCanvasElement).focus();
+    }
 
     // Optional: Hide display after transition
     setTimeout(() => {
@@ -360,15 +453,21 @@ export class DialogueManager {
   }
 
   private end(): void {
-    const callback = this.current?.onComplete;
+    const callback = this.isScriptMode
+      ? this.scriptOnComplete
+      : this.current?.onComplete;
 
-    // Clear state BEFORE calling onComplete so a new dialogue can be started
+    // Clear ALL state BEFORE calling onComplete so a new dialogue can be started
     this.cleanup();
     this.active = false;
     this.current = undefined;
     this.lineIndex = 0;
     this.isTyping = false;
     this.waitingForInput = false;
+    this.isScriptMode = false;
+    this.currentLine = null;
+    this.currentChoiceTargets = [];
+    this.scriptOnComplete = undefined;
 
     // Call onComplete - this may start a new dialogue
     if (callback) {

@@ -38,44 +38,6 @@ export interface DialogueLine {
   choices?: DialogueChoice[];
 }
 
-// Quest Graph Types (LiteGraph format)
-export interface QuestGraphLink {
-  0: number; // link id
-  1: number; // origin node id
-  2: number; // origin slot index
-  3: number; // target node id
-  4: number; // target slot index
-  5?: string; // type
-}
-
-export interface QuestGraphNodeOutput {
-  name: string;
-  type?: string;
-  links?: number[];
-}
-
-export interface QuestGraphNodeInput {
-  name: string;
-  type?: string;
-  link?: number;
-}
-
-export interface QuestGraphNode {
-  id: number;
-  type: string;
-  pos?: [number, number];
-  size?: [number, number];
-  properties?: Record<string, unknown>;
-  widgets_values?: unknown[];
-  inputs?: QuestGraphNodeInput[];
-  outputs?: QuestGraphNodeOutput[];
-}
-
-export interface QuestGraph {
-  nodes: QuestGraphNode[];
-  links: QuestGraphLink[];
-}
-
 export interface NPCSpawn {
   type: "npc";
   name?: string;
@@ -94,7 +56,8 @@ export interface NPCSpawn {
     interact?: string;
   };
   interactionSound?: string;
-  questGraph?: QuestGraph;
+  // Custom Script Integration
+  scriptSource?: string;
 }
 
 export interface PortalSpawn {

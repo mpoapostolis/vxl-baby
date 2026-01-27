@@ -1,5 +1,5 @@
 ---
-import QuestGraphEditor from "./QuestGraphEditor.astro";
+import ScriptEditor from "./ScriptEditor.astro";
 ---
 
 <main
@@ -7,7 +7,6 @@ import QuestGraphEditor from "./QuestGraphEditor.astro";
 >
   <!-- Toolbar -->
   <div
-    x-show="!showQuestEditor"
     class="h-10 bg-[var(--bg-header)] border-b border-[var(--border-dark)] flex items-center px-4 justify-between select-none shrink-0 gap-4"
   >
     <!-- Left: Scene Management -->
@@ -151,7 +150,7 @@ import QuestGraphEditor from "./QuestGraphEditor.astro";
     <!-- Selection Overlay (Bottom Right) -->
     <div
       class="absolute bottom-3 right-3 pointer-events-none select-none"
-      x-show="selectedEntityIdx !== -1 && !showQuestEditor"
+      x-show="selectedEntityIdx !== -1"
       x-transition.opacity.duration.200ms
     >
       <div
@@ -168,7 +167,7 @@ import QuestGraphEditor from "./QuestGraphEditor.astro";
       </div>
     </div>
 
-    <!-- Quest Graph Editor Overlay -->
-    <QuestGraphEditor />
+    <!-- Script Editor Overlay -->
+    <ScriptEditor />
   </div>
 </main>

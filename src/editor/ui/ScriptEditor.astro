@@ -1,0 +1,543 @@
+<div
+  id="script-editor-root"
+  x-show="showScriptEditor"
+  class="absolute inset-4 z-50 flex flex-col font-sans bg-[#1e1e1eba] backdrop-blur-md rounded-xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/10"
+  style="display: none;"
+  x-transition.opacity.duration.200ms
+  x-cloak
+  x-data="scriptEditor()"
+  @keydown.escape.window="closeEditor()"
+>
+  <div
+    class="flex-1 flex flex-col bg-[#1e1e1e] rounded-xl overflow-hidden border border-[#333] shadow-2xl ring-1 ring-white/10"
+  >
+    <div
+      class="h-12 border-b border-[#333] bg-[#252526] flex items-center justify-between px-4 shrink-0 select-none"
+    >
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 text-emerald-500">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            ><path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg
+          >
+          <span class="font-bold tracking-wider text-sm">VXL PRO EDITOR</span>
+        </div>
+        <div class="h-4 w-px bg-[#444]"></div>
+        <div class="text-xs text-gray-400 flex gap-2">
+          <span>Editing:</span>
+          <span
+            x-text="entityName"
+            class="text-gray-100 font-semibold bg-[#333] px-2 py-0.5 rounded"
+          ></span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <select
+          @change="loadTemplate($event.target.value); $event.target.value = ''"
+          class="appearance-none bg-[#333] text-gray-300 text-xs pl-3 pr-8 py-1.5 rounded border border-transparent hover:border-[#555] focus:border-emerald-500 outline-none cursor-pointer transition-all"
+        >
+          <option value="">Load Template...</option>
+          <option value="basic">📝 Basic Dialogue</option>
+          <option value="shop">💰 Merchant Shop</option>
+          <option value="reward">🎁 Quest Reward</option>
+          <option value="check">❓ Stat Check</option>
+          <option value="simple_quest">⚡ Simple Quest (Start/Return)</option>
+          <option value="quest">⚔️ Super Quest (Branching)</option>
+        </select>
+
+        <div class="h-4 w-px bg-[#444]"></div>
+
+        <button
+          @click="closeEditor()"
+          class="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-[#333] rounded transition-colors"
+          >Cancel</button
+        >
+        <button
+          @click="saveScript()"
+          class="px-4 py-1.5 text-xs font-bold rounded flex items-center gap-2 transition-all duration-200"
+          :class="isSaving ? 'bg-emerald-700 text-emerald-100' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]'"
+        >
+          <span x-text="isSaving ? 'SAVED' : 'SAVE CHANGES'"></span>
+          <span
+            x-show="!isSaving"
+            class="opacity-60 font-normal text-[10px] bg-black/20 px-1 rounded ml-1"
+            >⌘S</span
+          >
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-1 relative bg-[#1e1e1e]" id="monaco-container"></div>
+
+    <div
+      class="h-6 text-white text-[10px] flex items-center justify-between px-3 shrink-0 select-none transition-colors duration-300"
+      :class="errorCount > 0 ? 'bg-red-600 animate-pulse' : 'bg-emerald-600'"
+    >
+      <div class="flex items-center gap-4">
+        <span class="flex items-center gap-1"
+          ><span class="opacity-70">Ln</span>
+          <span x-text="cursorLine">1</span>, <span class="opacity-70">Col</span
+          >
+          <span x-text="cursorCol">1</span></span
+        >
+        <span class="opacity-50">|</span>
+        <span
+          x-show="errorCount > 0"
+          class="text-red-100 font-bold flex items-center gap-1 bg-red-500/20 px-1 rounded"
+        >
+          <span>⚠️</span>
+          <span x-text="errorCount"></span> Errors
+        </span>
+        <span x-show="errorCount === 0" class="flex items-center gap-1"
+          ><span>✔️</span> Valid Script</span
+        >
+      </div>
+      <div class="opacity-80">VXL Intellisense Enabled</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  import * as monaco from "monaco-editor";
+
+  // --- 1. THE MASSIVE DATABASE (200 Items) ---
+  const GAME_DB: Record<string, { type: string; desc: string }> = {
+    hp: { type: "Stat", desc: "Current Health Points" },
+    max_hp: { type: "Stat", desc: "Maximum Health Cap" },
+    mp: { type: "Stat", desc: "Mana Points" },
+    stamina: { type: "Stat", desc: "Endurance for running/attacks" },
+    xp: { type: "Stat", desc: "Experience Points" },
+    level: { type: "Stat", desc: "Character Level" },
+    karma: { type: "Stat", desc: "Alignment (-100 to 100)" },
+    strength: { type: "Attribute", desc: "Physical Power" },
+    dexterity: { type: "Attribute", desc: "Agility and Speed" },
+    intelligence: { type: "Attribute", desc: "Magic Power" },
+    gold: { type: "Currency", desc: "Standard Gold Coins" },
+    gems: { type: "Currency", desc: "Premium Currency" },
+    silver: { type: "Currency", desc: "Lesser Coinage" },
+    sword_rusty: { type: "Weapon", desc: "Old rusty blade. DMG: 5" },
+    sword_iron: { type: "Weapon", desc: "Standard soldier sword. DMG: 12" },
+    sword_steel: { type: "Weapon", desc: "Refined steel sword. DMG: 20" },
+    sword_excalibur: { type: "Legendary", desc: "The holy blade. DMG: 100" },
+    key_dungeon_1: { type: "Key", desc: "Opens the Crypt" },
+  };
+
+  // Add more items to simulate large DB
+  for (let i = 1; i <= 50; i++)
+    GAME_DB[`generic_item_${i}`] = { type: "Trash", desc: "Useless junk" };
+
+  const VAR_NAMES = Object.keys(GAME_DB);
+
+  // --- 2. EDITOR CONFIG ---
+  const LANG_ID = "vxl-script-pro";
+
+  if (!monaco.languages.getLanguages().some((l) => l.id === LANG_ID)) {
+    monaco.languages.register({ id: LANG_ID });
+
+    monaco.languages.setMonarchTokensProvider(LANG_ID, {
+      tokenizer: {
+        root: [
+          [/\$[a-zA-Z0-9_]+/, "variable.game"],
+          [/^#\s+[a-zA-Z0-9_]+/, "keyword.block"],
+
+          // Actions: [give item], [set var]
+          [/\[(give|take|set)\b/, "keyword.action"],
+          [/\[/, "keyword.action"],
+          [/\]/, "keyword.action"],
+
+          // Flow: -> TARGET
+          [/->\s*[a-zA-Z0-9_]+/, "keyword.flow"],
+
+          // Choice: * Option
+          [/^\*\s+/, "operator.choice"],
+
+          // Dialogue: Speaker:
+          [/^[a-zA-Z0-9_ ]+:/, "type.identifier"],
+
+          // Conditions
+          [/\(need\b/, "annotation.condition"],
+
+          [/\/\/.*/, "comment"],
+          [/\d+/, "number"],
+        ],
+      },
+    });
+
+    monaco.editor.defineTheme("vxl-ultimate", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [
+        { token: "variable.game", foreground: "FFD700", fontStyle: "bold" },
+        { token: "keyword.block", foreground: "c586c0", fontStyle: "bold" },
+        { token: "keyword.command", foreground: "4ec9b0", fontStyle: "bold" },
+        { token: "string.target", foreground: "ce9178" },
+        { token: "type.identifier", foreground: "569cd6", fontStyle: "bold" },
+        { token: "comment", foreground: "6a9955", fontStyle: "italic" },
+      ],
+      colors: {
+        "editor.background": "#1e1e1e",
+        "editor.lineHighlightBackground": "#2a2d2e",
+      },
+    });
+
+    monaco.languages.registerCompletionItemProvider(LANG_ID, {
+      triggerCharacters: ["$", ">", " "],
+      provideCompletionItems: (model, position) => {
+        const word = model.getWordUntilPosition(position);
+        const lineContent = model.getLineContent(position.lineNumber);
+        const textUntilCursor = lineContent.substring(0, position.column);
+
+        // --- 1. VARIABLE AUTOCOMPLETE (Trigger on $) ---
+        // Special check: are we immediately after a $ or currently typing a variable?
+        const lastDollarIndex = textUntilCursor.lastIndexOf("$");
+        const lastSpaceIndex = textUntilCursor.lastIndexOf(" ");
+
+        if (lastDollarIndex !== -1 && lastDollarIndex >= lastSpaceIndex) {
+          const suggestions = VAR_NAMES.map((name) => {
+            const item = GAME_DB[name];
+            let kind = monaco.languages.CompletionItemKind.Variable;
+            let icon = "💎"; // Default
+            if (item.type === "Weapon") {
+              kind = monaco.languages.CompletionItemKind.Enum;
+              icon = "⚔️";
+            }
+            if (item.type === "Stat") {
+              kind = monaco.languages.CompletionItemKind.Field;
+              icon = "📈";
+            }
+            if (item.type === "Currency") {
+              kind = monaco.languages.CompletionItemKind.Value;
+              icon = "💰";
+            }
+            if (item.type === "Key") {
+              kind = monaco.languages.CompletionItemKind.Property;
+              icon = "🔑";
+            }
+
+            return {
+              label: `${icon} $${name}`,
+              kind: kind,
+              insertText: name,
+              detail: `[${item.type}]`,
+              documentation: item.desc,
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            };
+          });
+          return { suggestions };
+        }
+
+        // --- 2. JUMP TARGET AUTOCOMPLETE (Trigger on '-> ') ---
+        if (textUntilCursor.trim().endsWith("->")) {
+          const blocks: string[] = [];
+          const text = model.getValue();
+          const lines = text.split("\n");
+          lines.forEach((l) => {
+            const m = l.match(/^#\s+([a-zA-Z0-9_]+)/);
+            if (m) blocks.push(m[1]);
+          });
+
+          const suggestions = blocks.map((b) => ({
+            label: `🚩 # ${b}`,
+            kind: monaco.languages.CompletionItemKind.Reference,
+            insertText: b,
+            detail: "Story Block",
+            range: {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn,
+            },
+          }));
+
+          suggestions.push({
+            label: "🛑 END",
+            kind: monaco.languages.CompletionItemKind.Keyword,
+            insertText: "END",
+            detail: "Terminate",
+            range: {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn,
+            },
+          });
+
+          return { suggestions };
+        }
+
+        // --- 3. COMMAND SNIPPETS & GENERAL ---
+        return {
+          suggestions: [
+            {
+              label: "CHOICE",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText:
+                "* ${1:Option} -> ${2:TARGET}\n* ${3:Option} (need 50 gold) -> ${4:TARGET}",
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: "Player Choices",
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            },
+            {
+              label: "GIVE [Action]",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: "[give ${1:item_name} ${2:1}]",
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: "Give Item to Player",
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            },
+            {
+              label: "TAKE [Action]",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: "[take ${1:item_name} ${2:1}]",
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: "Remove Item from Player",
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            },
+            {
+              label: "SET [Action]",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText: "[set ${1:variable_name} ${2:1}]",
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: "Set Global Variable",
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            },
+            {
+              label: "NEW BLOCK (#)",
+              kind: monaco.languages.CompletionItemKind.Snippet,
+              insertText:
+                "# ${1:BLOCK_NAME}\n${2:Speaker}: ${3:Dialogue...}\n-> ${4:END}",
+              insertTextRules:
+                monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+              detail: "Create logic block",
+              range: {
+                startLineNumber: position.lineNumber,
+                endLineNumber: position.lineNumber,
+                startColumn: word.startColumn,
+                endColumn: word.endColumn,
+              },
+            },
+          ],
+        };
+      },
+    });
+
+    monaco.languages.registerHoverProvider(LANG_ID, {
+      provideHover: (model, position) => {
+        const word = model.getWordAtPosition(position);
+        if (word && GAME_DB[word.word]) {
+          const item = GAME_DB[word.word];
+          return {
+            contents: [
+              { value: `**$${word.word}**` },
+              { value: `*${item.type}*` },
+              { value: item.desc },
+            ],
+          };
+        }
+      },
+    });
+  }
+
+  // --- 3. SINGLETON EDITOR INSTANCE (CRITICAL FOR PERFORMANCE) ---
+  let singletonEditor: monaco.editor.IStandaloneCodeEditor | null = null;
+  let validationTimeout: any = null;
+
+  const validateScript = (model: monaco.editor.ITextModel) => {
+    const text = model.getValue();
+    const markers: monaco.editor.IMarkerData[] = [];
+    const lines = text.split("\n");
+    const blocks = new Set<string>();
+
+    lines.forEach((line) => {
+      const m = line.match(/^#\s+([a-zA-Z0-9_]+)/);
+      if (m) blocks.add(m[1]);
+    });
+
+    lines.forEach((line, i) => {
+      const varMatches = line.matchAll(/\$([a-zA-Z0-9_]+)/g);
+      for (const match of varMatches) {
+        if (!GAME_DB[match[1]]) {
+          markers.push({
+            severity: monaco.MarkerSeverity.Error,
+            message: `Unknown variable '$${match[1]}'`,
+            startLineNumber: i + 1,
+            startColumn: match.index! + 1,
+            endLineNumber: i + 1,
+            endColumn: match.index! + 1 + match[0].length,
+          });
+        }
+      }
+      const jumpMatches = line.matchAll(/->\s+([a-zA-Z0-9_]+)/g);
+      for (const jumpMatch of jumpMatches) {
+        const target = jumpMatch[1];
+        if (
+          // Ignore command keywords if accidentally matched as targets?
+          // But our blocks set check handles that.
+          !blocks.has(target) &&
+          !["END"].includes(target)
+        ) {
+          markers.push({
+            severity: monaco.MarkerSeverity.Error,
+            message: `Missing story block: '# ${target}'`,
+            startLineNumber: i + 1,
+            startColumn: jumpMatch.index! + 3,
+            endLineNumber: i + 1,
+            endColumn: jumpMatch.index! + 3 + target.length,
+          });
+        }
+      }
+    });
+
+    monaco.editor.setModelMarkers(model, LANG_ID, markers);
+    return markers.length;
+  };
+
+  // --- ALPINE ---
+  document.addEventListener("alpine:init", () => {
+    // @ts-ignore
+    Alpine.data("scriptEditor", () => ({
+      showScriptEditor: false,
+      activeEntityId: -1,
+      entityName: "",
+      isSaving: false,
+      cursorLine: 1,
+      cursorCol: 1,
+      errorCount: 0,
+
+      init() {
+        // @ts-ignore
+        window.openScriptEditor = (id) => {
+          this.activeEntityId = id;
+          this.showScriptEditor = true;
+
+          // @ts-ignore
+          const ent = window.getEditorEntity
+            ? window.getEditorEntity(id)
+            : null;
+          this.entityName = ent?.name || "Entity_" + id;
+
+          const script = ent?.scriptSource || "";
+          setTimeout(() => this.initMonaco(script), 0);
+        };
+      },
+
+      closeEditor() {
+        this.showScriptEditor = false;
+      },
+
+      initMonaco(initialValue: string) {
+        const container = document.getElementById("monaco-container");
+        if (!container) return;
+
+        if (!singletonEditor) {
+          singletonEditor = monaco.editor.create(container, {
+            value: initialValue,
+            language: LANG_ID,
+            theme: "vxl-ultimate",
+            automaticLayout: true,
+            minimap: { enabled: true },
+            fontSize: 14,
+            fontFamily: "'Fira Code', monospace",
+            padding: { top: 20 },
+            scrollBeyondLastLine: false,
+          });
+
+          singletonEditor.onDidChangeCursorPosition((e) => {
+            this.cursorLine = e.position.lineNumber;
+            this.cursorCol = e.position.column;
+          });
+
+          singletonEditor.onDidChangeModelContent(() => {
+            if (validationTimeout) clearTimeout(validationTimeout);
+            validationTimeout = setTimeout(() => {
+              if (singletonEditor) {
+                this.errorCount = validateScript(singletonEditor.getModel()!);
+              }
+            }, 500); // 500ms debounce
+          });
+        } else {
+          singletonEditor.setValue(initialValue);
+        }
+
+        this.errorCount = validateScript(singletonEditor.getModel()!);
+      },
+
+      templates: {
+        basic: `# START\nStranger: Hello there, traveler.\n* Greetings -> GREET\n* Leave me alone -> RUDE\n\n# GREET\nStranger: Lovely weather today.\n-> END\n\n# RUDE\nStranger: Hmph. Suit yourself.\n-> END`,
+
+        shop: `# START\nMerchant: Finest wares in the land!\n* Buy Iron Sword (50g) (need 50 gold) -> BUY_SWORD\n* Buy Potion (10g) (need 10 gold) -> BUY_POTION\n* Just looking -> LEAVE\n\n# BUY_SWORD\n[take 50 gold]\n[give sword_iron]\nMerchant: A sharp choice.\n-> END\n\n# BUY_POTION\n[take 10 gold]\n[give potion_healing]\nMerchant: Stay healthy!\n-> END\n\n# LEAVE\nMerchant: Come back with coin.\n-> END`,
+
+        simple_quest: `# START\n// Check State\n* (need 1 quest_rats_done) -> THANKS\n* (need 1 quest_rats_active) -> RETURN\n\n// Intro\nFarmer: Rats are eating my grain! Help?\n* I'll handle it -> ACCEPT\n* Not my problem -> END\n\n# ACCEPT\nFarmer: Thank you! Bring me 5 Rat Tails.\n[set quest_rats_active 1]\n-> END\n\n# RETURN\nFarmer: Are the rats gone?\n* Here (need 5 rat_tails) -> COMPLETE\n* Still working on it -> END\n\n# COMPLETE\nFarmer: You saved my harvest!\n[take 5 rat_tails]\n[set quest_rats_active 0]\n[set quest_rats_done 1]\n[give gold 50]\n-> END\n\n# THANKS\nFarmer: Crops are looking great.\n-> END`,
+
+        check: `# START\nNarrator: A heavy boulder blocks the path.\n* [STR] Push it (need 10 strength) -> PUSH\n* [INT] Use leverage (need 10 intelligence) -> LEVER\n* Give up -> END\n\n# PUSH\nNarrator: You heave with all your might... Success!\n-> END\n\n# LEVER\nNarrator: Physics wins again. The path is clear.\n-> END`,
+
+        reward: `# START\nNarrator: You find an ornate chest.\n* Open it (need 1 key_dungeon) -> OPEN\n* Smash it (need 15 strength) -> SMASH\n* Leave it -> END\n\n# OPEN\n[give gold 500]\n[give sword_steel]\nNarrator: You found gold and a Steel Sword!\n-> END\n\n# SMASH\n[give gold 200]\nNarrator: You got the gold, but damaged the item inside.\n-> END`,
+
+        revive: `# START\nPriest: You look terrible, child.\n* Heal me (50g) (need 50 gold) -> HEAL\n* I'm fine -> END\n\n# HEAL\n[take 50 gold]\n[set hp 100]\nPriest: Light be with you.\n-> END`,
+
+        quest: `# START\nGuard: Halt! Who goes there?\n* I am a Messenger -> MESSENGER\n* Just a traveler -> TRAVELER\n\n# MESSENGER\nGuard: Prove it.\n* Show Emblem (need 1 emblem) -> PASS\n* I lost it -> JAIL\n\n# PASS\nGuard: My apologies. Proceed.\n-> END\n\n# JAIL\nGuard: Likely story. Seize him!\n-> END\n\n# TRAVELER\nGuard: Move along then.\n-> END`,
+      } as Record<string, string>,
+
+      loadTemplate(key: string) {
+        if (!key || !this.templates[key] || !singletonEditor) return;
+        if (confirm("Replace current script with template?")) {
+          singletonEditor.setValue(this.templates[key]);
+        }
+      },
+
+      saveScript() {
+        if (!singletonEditor) return;
+        this.isSaving = true;
+        const scriptValue = singletonEditor.getValue();
+
+        window.dispatchEvent(
+          new CustomEvent("save-script", {
+            detail: {
+              id: this.activeEntityId,
+              script: scriptValue,
+            },
+          }),
+        );
+
+        setTimeout(() => (this.isSaving = false), 800);
+      },
+    }));
+  });
+</script>
